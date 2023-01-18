@@ -1,0 +1,104 @@
+run:
+  timeout: 10m
+linters:
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - containedctx
+    - contextcheck
+    - cyclop
+    - depguard
+    - dogsled
+    - dupl
+    - durationcheck
+    - errcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exportloopref
+    - forbidigo
+    - forcetypeassert
+    - funlen
+    - gochecknoglobals
+    - gochecknoinits
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godox
+    - goerr113
+    - gofmt
+    - gofumpt
+    - goheader
+    - goimports
+    - gomnd
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - importas
+    - ineffassign
+    - lll
+    - maintidx
+    - makezero
+    - misspell
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - nlreturn
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - paralleltest
+    - prealloc
+    - predeclared
+    - promlinter
+    - reassign
+    - revive
+    - staticcheck
+    - stylecheck
+    - tagliatelle
+    - tenv
+    - testpackage
+    - thelper
+    - tparallel
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+    - wrapcheck
+    - wsl
+
+linters-settings:
+  misspell:
+    locale: US
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+  lll:
+    line-length: 96
+    tab-width: 1
+  goimports:
+    local-prefixes: github.com/ethersphere/eth-on-bzz
+  goheader:
+    values:
+      regexp:
+        date: "20[1-2][0-9]"
+    template: |-
+      Copyright {{date}} The Swarm Authors. All rights reserved.
+      Use of this source code is governed by a BSD-style
+      license that can be found in the LICENSE file.
+issues:
+  exclude-rules:
+    - linters:
+        - forbidigo
+      path: cmd/
+      text: "use of `fmt.Print"   ## allow fmt.Print in cmd directory
