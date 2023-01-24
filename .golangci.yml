@@ -34,8 +34,6 @@ linters:
     - gofumpt
     - goheader
     - goimports
-    - gomnd
-    - gomoddirectives
     - gomodguard
     - goprintffuncname
     - gosec
@@ -63,7 +61,6 @@ linters:
     - revive
     - staticcheck
     - stylecheck
-    - tagliatelle
     - tenv
     - testpackage
     - thelper
@@ -98,6 +95,9 @@ linters-settings:
       license that can be found in the LICENSE file.
 issues:
   exclude-rules:
+    - linters:
+        - goheader
+      text: "go-ethereum Authors" ## disable check for other authors
     - linters:
         - forbidigo
       path: cmd/
