@@ -19,6 +19,8 @@ var ErrNotFound = fmt.Errorf("not found")
 type (
 	BatchID string // 32bytes hex encoded string
 
+	SocSignature string // 65bytes (swarm.SocSignatureSize) hex encoded string
+
 	UploadResponse struct {
 		Reference swarm.Address `json:"reference"`
 	}
@@ -65,7 +67,7 @@ type (
 			owner common.Address,
 			id string,
 			data []byte,
-			signature string,
+			signature SocSignature,
 			batchID BatchID,
 		) (UploadSOCResponse, error)
 

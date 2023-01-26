@@ -33,7 +33,7 @@ func SignSocData(
 	id,
 	payload []byte,
 	privKey *ecdsa.PrivateKey,
-) (string, common.Address, error) {
+) (SocSignature, common.Address, error) {
 	signer := crypto.NewDefaultSigner(privKey)
 
 	publicKey, err := signer.PublicKey()
@@ -53,7 +53,7 @@ func SignSocData(
 
 	chunkData := sch.Data()
 	signatureBytes := chunkData[swarm.HashSize : swarm.HashSize+swarm.SocSignatureSize]
-	signature := hex.EncodeToString(signatureBytes)
+	signature := SocSignature(hex.EncodeToString(signatureBytes))
 
 	ownerBytes, err := crypto.NewEthereumAddress(*publicKey)
 	if err != nil {

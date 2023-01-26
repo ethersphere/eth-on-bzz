@@ -165,7 +165,7 @@ func (c *mockClient) UploadSOC(
 	owner common.Address,
 	id string,
 	data []byte,
-	signature string,
+	signature client.SocSignature,
 	batchID client.BatchID,
 ) (client.UploadSOCResponse, error) {
 	c.lock.Lock()

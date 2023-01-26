@@ -143,7 +143,7 @@ func randomBytes(t *testing.T, size int) []byte {
 	return buf
 }
 
-func prepareSocData(t *testing.T, id, payload []byte) (string, common.Address) {
+func prepareSocData(t *testing.T, id, payload []byte) (SocSignature, common.Address) {
 	t.Helper()
 
 	privKey, err := crypto.GenerateSecp256k1Key()
