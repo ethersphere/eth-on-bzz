@@ -6,12 +6,15 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethersphere/bee/pkg/swarm"
 )
+
+var ErrNotFound = fmt.Errorf("not found")
 
 type (
 	BatchID string // 32bytes hex encoded string

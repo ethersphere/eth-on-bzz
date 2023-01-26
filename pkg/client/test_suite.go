@@ -7,16 +7,12 @@ package client
 import (
 	"context"
 	"crypto/rand"
-	"encoding/hex"
 	"io"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethersphere/bee/pkg/cac"
 	"github.com/ethersphere/bee/pkg/crypto"
-	"github.com/ethersphere/bee/pkg/soc"
-	"github.com/ethersphere/bee/pkg/swarm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -129,9 +125,7 @@ func (suite *TestSuite) TestSocUpload() {
 
 	id := []byte("ethswarm-key-1")
 	data := []byte("Ethereum blockchain data on Swarm")
-
-	sig, owner, err := prepareSocData(id, data)
-	assert.NoError(t, err)
+	sig, owner := prepareSocData(t, id, data)
 
 	resp, err := c.UploadSOC(ctx, owner, string(id), data, sig, stamp.BatchID)
 	assert.NoError(t, err)
@@ -149,40 +143,14 @@ func randomBytes(t *testing.T, size int) []byte {
 	return buf
 }
 
-//nolint:wrapcheck //relax
-func prepareSocData(id, payload []byte) (string, common.Address, error) {
+func prepareSocData(t *testing.T, id, payload []byte) (string, common.Address) {
+	t.Helper()
+
 	privKey, err := crypto.GenerateSecp256k1Key()
-	if err != nil {
-		return "", common.Address{}, err
-	}
+	assert.NoError(t, err)
 
-	signer := crypto.NewDefaultSigner(privKey)
+	sig, addr, err := SignSocData(id, payload, privKey)
+	assert.NoError(t, err)
 
-	publicKey, err := signer.PublicKey()
-	if err != nil {
-		return "", common.Address{}, err
-	}
-
-	ch, err := cac.New(payload)
-	if err != nil {
-		return "", common.Address{}, err
-	}
-
-	sch, err := soc.New(id, ch).Sign(signer)
-	if err != nil {
-		return "", common.Address{}, err
-	}
-
-	chunkData := sch.Data()
-	signatureBytes := chunkData[swarm.HashSize : swarm.HashSize+swarm.SocSignatureSize]
-	signature := hex.EncodeToString(signatureBytes)
-
-	ownerBytes, err := crypto.NewEthereumAddress(*publicKey)
-	if err != nil {
-		return "", common.Address{}, err
-	}
-
-	owner := common.BytesToAddress(ownerBytes)
-
-	return signature, owner, nil
+	return sig, addr
 }

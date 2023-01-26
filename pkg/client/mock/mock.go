@@ -22,7 +22,6 @@ import (
 )
 
 var (
-	errNotFound              = fmt.Errorf("not found")
 	errInvalidStamp          = fmt.Errorf("invalid stamp")
 	errStampUsageExceeded    = fmt.Errorf("stamp usage exceeded")
 	errBuyStampInvalidAmount = fmt.Errorf("amount must be positive non zero value")
@@ -151,7 +150,7 @@ func (c *mockClient) Download(
 	c.lock.Unlock()
 
 	if !exists {
-		return nil, errNotFound
+		return nil, client.ErrNotFound
 	}
 
 	rc := &dataReadCloser{
@@ -194,12 +193,12 @@ func (c *mockClient) FeedGet(
 
 	addr, exists := c.feeds[feedID(owner, id)]
 	if !exists {
-		return client.FeedGetResponse{}, errNotFound
+		return client.FeedGetResponse{}, client.ErrNotFound
 	}
 
 	data, exists := c.data[addr.ByteString()]
 	if !exists {
-		return client.FeedGetResponse{}, errNotFound
+		return client.FeedGetResponse{}, client.ErrNotFound
 	}
 
 	resp := client.FeedGetResponse{
