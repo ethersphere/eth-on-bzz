@@ -24,7 +24,7 @@ type TestSuite struct {
 	PrivKey        *ecdsa.PrivateKey
 }
 
-func (suite *TestSuite) Test_Stamps_Ok() {
+func (suite *TestSuite) TestStampsOk() {
 	t := suite.T()
 	t.Parallel()
 
@@ -36,7 +36,7 @@ func (suite *TestSuite) Test_Stamps_Ok() {
 	assert.NotEmpty(t, stamp.BatchID)
 }
 
-func (suite *TestSuite) Test_Stamps_Error() {
+func (suite *TestSuite) TestStampsError() {
 	t := suite.T()
 	t.Parallel()
 
@@ -54,7 +54,7 @@ func (suite *TestSuite) Test_Stamps_Error() {
 	assert.Empty(t, stamp)
 }
 
-func (suite *TestSuite) Test_UploadDownload_Ok() {
+func (suite *TestSuite) TestUploadDownloadOk() {
 	t := suite.T()
 	t.Parallel()
 
@@ -95,7 +95,7 @@ func (suite *TestSuite) Test_UploadDownload_Ok() {
 	}
 }
 
-func (suite *TestSuite) Test_Upload_Error() {
+func (suite *TestSuite) TestUploadError() {
 	t := suite.T()
 	t.Parallel()
 
@@ -109,7 +109,7 @@ func (suite *TestSuite) Test_Upload_Error() {
 	assert.Empty(t, resp)
 }
 
-func (suite *TestSuite) Test_Download_Error() {
+func (suite *TestSuite) TestDownloadError() {
 	t := suite.T()
 	t.Parallel()
 
@@ -124,7 +124,7 @@ func (suite *TestSuite) Test_Download_Error() {
 	assert.Nil(t, reader)
 }
 
-func (suite *TestSuite) Test_SocUpload_Ok() {
+func (suite *TestSuite) TestSocUploadOk() {
 	t := suite.T()
 	t.Parallel()
 
