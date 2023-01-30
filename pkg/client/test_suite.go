@@ -6,23 +6,25 @@ package client
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"io"
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethersphere/bee/pkg/crypto"
+	"github.com/ethersphere/bee/pkg/swarm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
 
 type TestSuite struct {
 	suite.Suite
-	Fact func() Client
+	Fact           func() Client
+	CurrentBatchID func(Client) (BatchID, error)
+	PrivKey        *ecdsa.PrivateKey
 }
 
-func (suite *TestSuite) TestStamps() {
+func (suite *TestSuite) Test_Stamps_Ok() {
 	t := suite.T()
 	t.Parallel()
 
@@ -32,26 +34,36 @@ func (suite *TestSuite) TestStamps() {
 	stamp, err := c.BuyStamp(ctx, big.NewInt(10000000), 17, true)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, stamp.BatchID)
-
-	stamp, err = c.BuyStamp(ctx, big.NewInt(10000000), 16, true)
-	assert.Error(t, err)
-	assert.Empty(t, stamp)
-
-	stamp, err = c.BuyStamp(ctx, big.NewInt(0), 16, true)
-	assert.Error(t, err)
-	assert.Empty(t, stamp)
 }
 
-func (suite *TestSuite) TestUploadDownload() {
+func (suite *TestSuite) Test_Stamps_Error() {
 	t := suite.T()
 	t.Parallel()
 
 	c := suite.Fact()
 	ctx := context.Background()
 
-	stamp, err := c.BuyStamp(ctx, big.NewInt(10000000), 22, true)
+	// Assert invalid depth
+	stamp, err := c.BuyStamp(ctx, big.NewInt(10000000), 14, true)
+	assert.Error(t, err)
+	assert.Empty(t, stamp)
+
+	// Assert low amount
+	stamp, err = c.BuyStamp(ctx, big.NewInt(0), 16, true)
+	assert.Error(t, err)
+	assert.Empty(t, stamp)
+}
+
+func (suite *TestSuite) Test_UploadDownload_Ok() {
+	t := suite.T()
+	t.Parallel()
+
+	c := suite.Fact()
+	ctx := context.Background()
+
+	batchID, err := suite.CurrentBatchID(c)
 	assert.NoError(t, err)
-	assert.NotEmpty(t, stamp.BatchID)
+	assert.NotEmpty(t, batchID)
 
 	tests := []struct {
 		size int
@@ -68,7 +80,7 @@ func (suite *TestSuite) TestUploadDownload() {
 	for _, tc := range tests {
 		data := randomBytes(t, tc.size)
 
-		resp, err := c.Upload(ctx, data, stamp.BatchID)
+		resp, err := c.Upload(ctx, data, batchID)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, resp)
 
@@ -83,7 +95,7 @@ func (suite *TestSuite) TestUploadDownload() {
 	}
 }
 
-func (suite *TestSuite) TestUploadError() {
+func (suite *TestSuite) Test_Upload_Error() {
 	t := suite.T()
 	t.Parallel()
 
@@ -97,7 +109,7 @@ func (suite *TestSuite) TestUploadError() {
 	assert.Empty(t, resp)
 }
 
-func (suite *TestSuite) TestDownloadError() {
+func (suite *TestSuite) Test_Download_Error() {
 	t := suite.T()
 	t.Parallel()
 
@@ -112,22 +124,23 @@ func (suite *TestSuite) TestDownloadError() {
 	assert.Nil(t, reader)
 }
 
-func (suite *TestSuite) TestSocUpload() {
+func (suite *TestSuite) Test_SocUpload_Ok() {
 	t := suite.T()
 	t.Parallel()
 
 	c := suite.Fact()
 	ctx := context.Background()
 
-	stamp, err := c.BuyStamp(ctx, big.NewInt(10000000), 22, true)
+	batchID, err := suite.CurrentBatchID(c)
 	assert.NoError(t, err)
-	assert.NotEmpty(t, stamp.BatchID)
+	assert.NotEmpty(t, batchID)
 
-	id := []byte("ethswarm-key-1")
-	data := []byte("Ethereum blockchain data on Swarm")
-	sig, owner := prepareSocData(t, id, data)
+	idRaw := randomBytes(t, swarm.HashSize)
+	dataRaw := []byte("Ethereum blockchain data on Swarm")
+	data, sig, owner, err := SignSocData(idRaw, dataRaw, suite.PrivKey)
+	assert.NoError(t, err)
 
-	resp, err := c.UploadSOC(ctx, owner, string(id), data, sig, stamp.BatchID)
+	resp, err := c.UploadSOC(ctx, owner, SocID(idRaw), data, sig, batchID)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, resp)
 }
@@ -141,16 +154,4 @@ func randomBytes(t *testing.T, size int) []byte {
 	assert.Equal(t, size, n)
 
 	return buf
-}
-
-func prepareSocData(t *testing.T, id, payload []byte) (SocSignature, common.Address) {
-	t.Helper()
-
-	privKey, err := crypto.GenerateSecp256k1Key()
-	assert.NoError(t, err)
-
-	sig, addr, err := SignSocData(id, payload, privKey)
-	assert.NoError(t, err)
-
-	return sig, addr
 }

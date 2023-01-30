@@ -163,7 +163,7 @@ func (c *mockClient) Download(
 func (c *mockClient) UploadSOC(
 	ctx context.Context,
 	owner common.Address,
-	id string,
+	id client.SocID,
 	data []byte,
 	signature client.SocSignature,
 	batchID client.BatchID,
@@ -176,7 +176,7 @@ func (c *mockClient) UploadSOC(
 		return client.UploadSOCResponse{}, err
 	}
 
-	c.feeds[feedID(owner, id)] = addr
+	c.feeds[feedID(owner, string(id))] = addr
 
 	resp := client.UploadSOCResponse{Reference: addr}
 
@@ -186,12 +186,12 @@ func (c *mockClient) UploadSOC(
 func (c *mockClient) FeedGet(
 	ctx context.Context,
 	owner common.Address,
-	id string,
+	topic client.Topic,
 ) (client.FeedGetResponse, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	addr, exists := c.feeds[feedID(owner, id)]
+	addr, exists := c.feeds[feedID(owner, string(topic))]
 	if !exists {
 		return client.FeedGetResponse{}, client.ErrNotFound
 	}

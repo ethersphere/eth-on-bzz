@@ -11,6 +11,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethersphere/bee/pkg/soc"
 	"github.com/ethersphere/bee/pkg/swarm"
 )
 
@@ -19,7 +20,11 @@ var ErrNotFound = fmt.Errorf("not found")
 type (
 	BatchID string // 32bytes hex encoded string
 
+	SocID = soc.ID
+
 	SocSignature string // 65bytes (swarm.SocSignatureSize) hex encoded string
+
+	Topic string // hex encoded string
 
 	UploadResponse struct {
 		Reference swarm.Address `json:"reference"`
@@ -65,7 +70,7 @@ type (
 		UploadSOC(
 			ctx context.Context,
 			owner common.Address,
-			id string,
+			id SocID,
 			data []byte,
 			signature SocSignature,
 			batchID BatchID,
@@ -75,7 +80,7 @@ type (
 		FeedGet(
 			ctx context.Context,
 			owner common.Address,
-			topic string,
+			topic Topic,
 		) (FeedGetResponse, error)
 	}
 )
