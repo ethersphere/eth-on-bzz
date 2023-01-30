@@ -30,7 +30,7 @@ func RandomAddress() (swarm.Address, error) {
 
 //nolint:wrapcheck //relax
 func SignSocData(
-	id,
+	id SocID,
 	payload []byte,
 	privKey *ecdsa.PrivateKey,
 ) ([]byte, SocSignature, common.Address, error) {
