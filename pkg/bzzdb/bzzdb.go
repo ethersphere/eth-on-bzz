@@ -75,7 +75,9 @@ func (db *bzzdb) Get(key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	feedResp, err := db.beeCli.FeedGet(db.ctx, owner, makeKey(key))
+	swarmKey := makeKey(key)
+
+	feedResp, err := db.beeCli.FeedGet(db.ctx, owner, client.Topic(string(swarmKey)))
 	if err != nil {
 		return nil, err
 	}
@@ -107,14 +109,15 @@ func (db *bzzdb) Put(key []byte, value []byte) error {
 		return err
 	}
 
-	data := uploadResp.Reference.Bytes()
+	swarmKey := makeKey(key)
+	rawData := uploadResp.Reference.Bytes()
 
-	sig, owner, err := client.SignSocData([]byte(makeKey(key)), data, db.privKey)
+	_, sig, owner, err := client.SignSocData(swarmKey, rawData, db.privKey)
 	if err != nil {
 		return err
 	}
 
-	_, err = db.beeCli.UploadSOC(db.ctx, owner, makeKey(key), data, sig, batchID)
+	_, err = db.beeCli.UploadSOC(db.ctx, owner, client.SocID(swarmKey), rawData, sig, batchID)
 	if err != nil {
 		return err
 	}
@@ -129,14 +132,15 @@ func (db *bzzdb) Delete(key []byte) error {
 		return err
 	}
 
-	data := []byte(deletedSOCData)
+	swarmKey := makeKey(key)
+	rawData := []byte(deletedSOCData)
 
-	sig, owner, err := client.SignSocData([]byte(makeKey(key)), data, db.privKey)
+	_, sig, owner, err := client.SignSocData(swarmKey, rawData, db.privKey)
 	if err != nil {
 		return err
 	}
 
-	_, err = db.beeCli.UploadSOC(db.ctx, owner, makeKey(key), data, sig, batchID)
+	_, err = db.beeCli.UploadSOC(db.ctx, owner, client.SocID(swarmKey), rawData, sig, batchID)
 	if err != nil {
 		return err
 	}
@@ -150,6 +154,6 @@ func (db *bzzdb) Close() error {
 	return nil
 }
 
-func makeKey(key []byte) string {
-	return keyPrefix + string(key)
+func makeKey(key []byte) []byte {
+	return []byte(keyPrefix + string(key))
 }
