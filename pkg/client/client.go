@@ -18,13 +18,13 @@ import (
 var ErrNotFound = fmt.Errorf("not found")
 
 type (
-	BatchID string // 32bytes hex encoded string
+	BatchID string // hex encoded [32]byte
 
 	SocID = soc.ID
 
-	SocSignature string // 65bytes (swarm.SocSignatureSize) hex encoded string
+	SocSignature string // hex encoded [65]bytes (swarm.SocSignatureSize)
 
-	Topic string // hex encoded string
+	Topic string // hex encoded []byte
 
 	UploadResponse struct {
 		Reference swarm.Address `json:"reference"`
@@ -43,7 +43,7 @@ type (
 		Current   []byte        // SwarmFeedIndexHeader
 	}
 
-	// Client is interface for communicating with Bee node.
+	// Client is interface for communicating with Bee node API.
 	Client interface {
 		// BuyStamp buys a new postage stamp batch.
 		BuyStamp(
