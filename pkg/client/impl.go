@@ -61,14 +61,15 @@ func (c *client) BuyStamp(
 
 	endpoint := c.makeEndpoint("stamps", amount.Text(10), fmt.Sprintf("%d", depth))
 
-	respBody, err := c.doRequest(ctx, http.MethodPost, endpoint, h, nil)
+	//nolint:bodyclose // body is closed after handling error
+	httpResp, err := c.doRequest(ctx, http.MethodPost, endpoint, h, nil)
 	if err != nil {
 		return resp, fmt.Errorf("buy stamps request failed: %w", err)
 	}
 
-	defer closeBody(respBody)
+	defer closeBody(httpResp)
 
-	if err := json.NewDecoder(respBody).Decode(&resp); err != nil {
+	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
 		return resp, fmt.Errorf("failed to decode response from buy stamps endpoint: %w", err)
 	}
 
@@ -88,14 +89,15 @@ func (c *client) Upload(
 	dataReader := bytes.NewReader(data)
 	endpoint := c.makeEndpoint("bytes")
 
-	respBody, err := c.doRequest(ctx, http.MethodPost, endpoint, h, dataReader)
+	//nolint:bodyclose // body is closed after handling error
+	httpResp, err := c.doRequest(ctx, http.MethodPost, endpoint, h, dataReader)
 	if err != nil {
 		return resp, fmt.Errorf("upload request failed: %w", err)
 	}
 
-	defer closeBody(respBody)
+	defer closeBody(httpResp)
 
-	if err := json.NewDecoder(respBody).Decode(&resp); err != nil {
+	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
 		return resp, fmt.Errorf("failed to decode response from upload endpoint: %w", err)
 	}
 
@@ -109,7 +111,27 @@ func (c *client) Download(
 	header := http.Header{}
 	endpoint := c.makeEndpoint("bytes", addr.String())
 
-	return c.doRequest(ctx, http.MethodGet, endpoint, header, nil)
+	httpResp, err := c.doRequest(ctx, http.MethodGet, endpoint, header, nil)
+	if err != nil {
+		return nil, fmt.Errorf("download request failed: %w", err)
+	}
+
+	return httpResp.Body, nil
+}
+
+func (c *client) DownloadChunk(
+	ctx context.Context,
+	addr swarm.Address,
+) (io.ReadCloser, error) {
+	header := http.Header{}
+	endpoint := c.makeEndpoint("chunks", addr.String())
+
+	httpResp, err := c.doRequest(ctx, http.MethodGet, endpoint, header, nil)
+	if err != nil {
+		return nil, fmt.Errorf("download chunk request failed: %w", err)
+	}
+
+	return httpResp.Body, nil
 }
 
 func (c *client) UploadSOC(
@@ -129,14 +151,15 @@ func (c *client) UploadSOC(
 	endpoint := c.makeEndpoint("soc", hex.EncodeToString(owner.Bytes()), hex.EncodeToString(id))
 	endpoint += "?sig=" + string(signature)
 
-	respBody, err := c.doRequest(ctx, http.MethodPost, endpoint, h, dataReader)
+	//nolint:bodyclose // body is closed after handling error
+	httpResp, err := c.doRequest(ctx, http.MethodPost, endpoint, h, dataReader)
 	if err != nil {
 		return resp, fmt.Errorf("upload request failed: %w", err)
 	}
 
-	defer closeBody(respBody)
+	defer closeBody(httpResp)
 
-	if err := json.NewDecoder(respBody).Decode(&resp); err != nil {
+	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
 		return resp, fmt.Errorf("failed to decode response from upload SOC endpoint: %w", err)
 	}
 
@@ -160,7 +183,7 @@ func (c *client) doRequest(
 	method, path string,
 	header http.Header,
 	body io.Reader,
-) (io.ReadCloser, error) {
+) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, path, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new request: %w", err)
@@ -170,22 +193,20 @@ func (c *client) doRequest(
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", contentType)
 
-	r, err := c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		if r != nil {
-			closeBody(r.Body)
-		}
+		closeBody(resp)
 
 		return nil, fmt.Errorf("failed to create new request: %w", err)
 	}
 
-	if err := responseErrorHandler(r); err != nil {
-		closeBody(r.Body)
+	if err := responseErrorHandler(resp); err != nil {
+		closeBody(resp)
 
 		return nil, err
 	}
 
-	return r.Body, nil
+	return resp, nil
 }
 
 type swarmAPIError struct {
@@ -210,8 +231,8 @@ func responseErrorHandler(r *http.Response) error {
 	return eResp
 }
 
-func closeBody(body io.ReadCloser) {
-	if body != nil {
-		body.Close()
+func closeBody(resp *http.Response) {
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
 	}
 }

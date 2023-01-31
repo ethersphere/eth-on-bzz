@@ -160,6 +160,13 @@ func (c *mockClient) Download(
 	return rc, nil
 }
 
+func (c *mockClient) DownloadChunk(
+	ctx context.Context,
+	addr swarm.Address,
+) (io.ReadCloser, error) {
+	return c.Download(ctx, addr)
+}
+
 func (c *mockClient) UploadSOC(
 	ctx context.Context,
 	owner common.Address,
@@ -171,12 +178,12 @@ func (c *mockClient) UploadSOC(
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	addr, err := c.upload(ctx, data, batchID)
+	addr, err := c.upload(ctx, makeSOCData(data), batchID)
 	if err != nil {
 		return client.UploadSOCResponse{}, err
 	}
 
-	c.feeds[feedID(owner, string(id))] = addr
+	c.feeds[feedID(owner, hex.EncodeToString(id))] = addr
 
 	resp := client.UploadSOCResponse{Reference: addr}
 
@@ -207,6 +214,13 @@ func (c *mockClient) FeedGet(
 	}
 
 	return resp, nil
+}
+
+func makeSOCData(data []byte) []byte {
+	headerLen := swarm.HashSize + swarm.SocSignatureSize
+	soc := make([]byte, headerLen, headerLen+len(data))
+
+	return append(soc, data...)
 }
 
 func feedID(owner common.Address, id string) string {
