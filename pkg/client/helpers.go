@@ -65,6 +65,7 @@ func SignSocData(
 	return ch.Data(), signature, owner, nil
 }
 
+
 func RawDataFromSOCResp(resp []byte) []byte {
 	start := swarm.SpanSize + swarm.HashSize + swarm.SocSignatureSize
 
