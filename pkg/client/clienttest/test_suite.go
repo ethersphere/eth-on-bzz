@@ -65,7 +65,7 @@ func (suite *TestSuite) TestUploadDownloadOk() {
 	p := suite.PostageFact(c)
 	ctx := context.Background()
 
-	batchID, err := p.CurrentBatchID()
+	batchID, err := p.CurrentBatchID(ctx)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, batchID)
 
@@ -136,7 +136,7 @@ func (suite *TestSuite) TestSocUploadOk() {
 	p := suite.PostageFact(c)
 	ctx := context.Background()
 
-	batchID, err := p.CurrentBatchID()
+	batchID, err := p.CurrentBatchID(ctx)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, batchID)
 
