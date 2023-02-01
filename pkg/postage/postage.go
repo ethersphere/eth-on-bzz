@@ -6,6 +6,7 @@ package postage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -14,7 +15,7 @@ import (
 )
 
 type Postage interface {
-	CurrentBatchID() (client.BatchID, error)
+	CurrentBatchID(context.Context) (client.BatchID, error)
 }
 
 func New(beeCli client.Client) Postage {
@@ -29,7 +30,7 @@ type postage struct {
 	lock    sync.Mutex
 }
 
-func (p *postage) CurrentBatchID() (client.BatchID, error) {
+func (p *postage) CurrentBatchID(ctx context.Context) (client.BatchID, error) {
 	p.lock.Lock()
 	batchID := p.batchID
 	p.lock.Unlock()
@@ -38,16 +39,9 @@ func (p *postage) CurrentBatchID() (client.BatchID, error) {
 		return batchID, nil
 	}
 
-	ctx := context.Background()
-
-	batchID, err := p.fetchFirstUsableStamp(ctx)
+	batchID, err := p.fetchOrBuyStamp(ctx)
 	if err != nil {
-		resp, err := p.beeCli.BuyStamp(ctx, big.NewInt(10000000), 22, true)
-		if err != nil {
-			return client.BatchID(""), err
-		}
-
-		batchID = resp.BatchID
+		return batchID, err
 	}
 
 	p.lock.Lock()
@@ -55,6 +49,20 @@ func (p *postage) CurrentBatchID() (client.BatchID, error) {
 	p.lock.Unlock()
 
 	return batchID, nil
+}
+
+func (p *postage) fetchOrBuyStamp(ctx context.Context) (client.BatchID, error) {
+	batchID, err := p.fetchFirstUsableStamp(ctx)
+	if errors.Is(err, errNoUsableBatch) {
+		resp, err := p.beeCli.BuyStamp(ctx, big.NewInt(10000000), 22, true)
+		if err != nil {
+			return client.BatchID(""), err
+		}
+
+		return resp.BatchID, nil
+	}
+
+	return batchID, err
 }
 
 var errNoUsableBatch = fmt.Errorf("no usable batch found")
