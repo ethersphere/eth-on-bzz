@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethersphere/bee/pkg/bigint"
 	"github.com/ethersphere/bee/pkg/postage/testing"
 	"github.com/ethersphere/bee/pkg/swarm"
 
@@ -68,6 +69,26 @@ func (s *stampData) incUsage(size int) error {
 	s.usage += requiredChunks
 
 	return nil
+}
+
+func (c *mockClient) Stamps(
+	ctx context.Context,
+) (client.StampsResponse, error) {
+	var resp client.StampsResponse
+
+	for batchID, st := range c.stamps {
+		s := client.Stamp{
+			Amount:        bigint.Wrap(st.amount),
+			Depth:         st.depth,
+			ImmutableFlag: st.immutable,
+			BatchID:       batchID,
+			Usable:        true,
+		}
+
+		resp.Stamps = append(resp.Stamps, s)
+	}
+
+	return resp, nil
 }
 
 func (c *mockClient) BuyStamp(

@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/ethersphere/eth-on-bzz/pkg/client"
+	"github.com/ethersphere/eth-on-bzz/pkg/client/clienttest"
+	"github.com/ethersphere/eth-on-bzz/pkg/postage"
 )
 
 const (
@@ -27,7 +29,7 @@ const (
 func Test_Client_Integration(t *testing.T) {
 	t.Parallel()
 
-	// os.Setenv(envNodeAddress, "http://localhost:1633")
+	// os.Setenv(envNodeAddress, "http://localhost")
 	// os.Setenv(envPrivKey, "dc85109859ffd3a1256fda9f0570c28c")
 
 	privKey := getPrivKey(t)
@@ -36,14 +38,12 @@ func Test_Client_Integration(t *testing.T) {
 		NodeURL: getEnv(t, envNodeAddress),
 	}
 
-	suite.Run(t, &client.TestSuite{
-		Fact: func() client.Client {
+	suite.Run(t, &clienttest.TestSuite{
+		ClientFact: func() client.Client {
 			return client.NewClient(cfg)
 		},
-		CurrentBatchID: func(c client.Client) (client.BatchID, error) {
-			return client.BatchID("6f17e2b53ef98e163f6997a56a45088abfa6e7ddde366e35136eda046cd77161"), nil
-		},
-		PrivKey: privKey,
+		PostageFact: postage.New,
+		PrivKey:     privKey,
 	})
 }
 
