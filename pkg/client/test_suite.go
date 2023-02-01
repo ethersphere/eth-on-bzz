@@ -143,6 +143,15 @@ func (suite *TestSuite) TestSocUploadOk() {
 	resp, err := c.UploadSOC(ctx, owner, SocID(idRaw), data, sig, batchID)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, resp)
+
+	respReader, err := c.DownloadChunk(ctx, resp.Reference)
+	assert.NoError(t, err)
+
+	respData, err := io.ReadAll(respReader)
+	assert.NoError(t, err)
+	respReader.Close()
+
+	assert.Equal(t, dataRaw, RawDataFromSOCResp(respData))
 }
 
 func randomBytes(t *testing.T, size int) []byte {

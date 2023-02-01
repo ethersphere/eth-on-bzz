@@ -66,6 +66,12 @@ type (
 			addr swarm.Address,
 		) (io.ReadCloser, error)
 
+		// DownloadChunk downloads Chunk via /chunks endpoint.
+		DownloadChunk(
+			ctx context.Context,
+			addr swarm.Address,
+		) (io.ReadCloser, error)
+
 		// UploadSOC uploads Single Owner Chunk data via /soc endpoint.
 		UploadSOC(
 			ctx context.Context,

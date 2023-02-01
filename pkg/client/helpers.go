@@ -65,6 +65,12 @@ func SignSocData(
 	return ch.Data(), signature, owner, nil
 }
 
+func RawDataFromSOCResp(resp []byte) []byte {
+	start := swarm.SpanSize + swarm.HashSize + swarm.SocSignatureSize
+
+	return resp[start:]
+}
+
 //nolint:wrapcheck //relax
 func OwnerFromKey(privKey *ecdsa.PrivateKey) (common.Address, error) {
 	signer := crypto.NewDefaultSigner(privKey)
