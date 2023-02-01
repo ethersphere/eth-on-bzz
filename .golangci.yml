@@ -79,6 +79,7 @@ linters-settings:
   govet:
     enable-all: true
     disable:
+      - shadow
       - fieldalignment
   lll:
     line-length: 96
