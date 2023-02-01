@@ -13,6 +13,7 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -28,10 +29,13 @@ const (
 
 	headerImmutable = "Immutable"
 	headerBatchID   = api.SwarmPostageBatchIdHeader
+
+	portAPI  = 1633
+	portAPId = 1635
 )
 
 type client struct {
-	baseURL    string
+	cfg        Config
 	httpClient *http.Client
 }
 
@@ -40,12 +44,34 @@ type Config struct {
 }
 
 func NewClient(cfg Config) Client {
-	baseURL := cfg.NodeURL + "/" + apiVersion + "/"
-
 	return &client{
-		baseURL:    baseURL,
+		cfg:        cfg,
 		httpClient: http.DefaultClient,
 	}
+}
+
+func (c *client) Stamps(
+	ctx context.Context,
+) (StampsResponse, error) {
+	var resp StampsResponse
+
+	h := http.Header{}
+
+	endpoint := c.makeEndpoint(portAPId, "stamps")
+
+	//nolint:bodyclose // body is closed after handling error
+	httpResp, err := c.doRequest(ctx, http.MethodGet, endpoint, h, nil)
+	if err != nil {
+		return resp, fmt.Errorf("stamps request failed: %w", err)
+	}
+
+	defer closeBody(httpResp)
+
+	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
+		return resp, fmt.Errorf("failed to decode response from stamps endpoint: %w", err)
+	}
+
+	return resp, nil
 }
 
 func (c *client) BuyStamp(
@@ -59,7 +85,7 @@ func (c *client) BuyStamp(
 	h := http.Header{}
 	h.Add(headerImmutable, fmt.Sprintf("%v", immutable))
 
-	endpoint := c.makeEndpoint("stamps", amount.Text(10), fmt.Sprintf("%d", depth))
+	endpoint := c.makeEndpoint(portAPId, "stamps", amount.Text(10), fmt.Sprintf("%d", depth))
 
 	//nolint:bodyclose // body is closed after handling error
 	httpResp, err := c.doRequest(ctx, http.MethodPost, endpoint, h, nil)
@@ -87,7 +113,7 @@ func (c *client) Upload(
 	h.Add(headerBatchID, string(batchID))
 
 	dataReader := bytes.NewReader(data)
-	endpoint := c.makeEndpoint("bytes")
+	endpoint := c.makeEndpoint(portAPI, "bytes")
 
 	//nolint:bodyclose // body is closed after handling error
 	httpResp, err := c.doRequest(ctx, http.MethodPost, endpoint, h, dataReader)
@@ -109,7 +135,7 @@ func (c *client) Download(
 	addr swarm.Address,
 ) (io.ReadCloser, error) {
 	header := http.Header{}
-	endpoint := c.makeEndpoint("bytes", addr.String())
+	endpoint := c.makeEndpoint(portAPI, "bytes", addr.String())
 
 	httpResp, err := c.doRequest(ctx, http.MethodGet, endpoint, header, nil)
 	if err != nil {
@@ -124,7 +150,7 @@ func (c *client) DownloadChunk(
 	addr swarm.Address,
 ) (io.ReadCloser, error) {
 	header := http.Header{}
-	endpoint := c.makeEndpoint("chunks", addr.String())
+	endpoint := c.makeEndpoint(portAPI, "chunks", addr.String())
 
 	httpResp, err := c.doRequest(ctx, http.MethodGet, endpoint, header, nil)
 	if err != nil {
@@ -148,7 +174,10 @@ func (c *client) UploadSOC(
 	h.Add(headerBatchID, string(batchID))
 
 	dataReader := bytes.NewReader(data)
-	endpoint := c.makeEndpoint("soc", hex.EncodeToString(owner.Bytes()), hex.EncodeToString(id))
+
+	ownerParam := hex.EncodeToString(owner.Bytes())
+	idParam := hex.EncodeToString(id)
+	endpoint := c.makeEndpoint(portAPI, "soc", ownerParam, idParam)
 	endpoint += "?sig=" + string(signature)
 
 	//nolint:bodyclose // body is closed after handling error
@@ -174,8 +203,10 @@ func (c *client) FeedGet(
 	return FeedGetResponse{}, nil
 }
 
-func (c *client) makeEndpoint(parts ...string) string {
-	return c.baseURL + strings.Join(parts, "/")
+func (c *client) makeEndpoint(port int, parts ...string) string {
+	resource := strings.Join(parts, "/")
+
+	return c.cfg.NodeURL + ":" + strconv.Itoa(port) + "/" + apiVersion + "/" + resource
 }
 
 func (c *client) doRequest(

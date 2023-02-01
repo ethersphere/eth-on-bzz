@@ -11,6 +11,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethersphere/bee/pkg/bigint"
 	"github.com/ethersphere/bee/pkg/soc"
 	"github.com/ethersphere/bee/pkg/swarm"
 )
@@ -30,6 +31,25 @@ type (
 		Reference swarm.Address `json:"reference"`
 	}
 
+	StampsResponse struct {
+		Stamps []Stamp `json:"stamps"`
+	}
+
+	Stamp struct {
+		BatchID       BatchID        `json:"batchID"`
+		Utilization   uint32         `json:"utilization"`
+		Usable        bool           `json:"usable"`
+		Label         string         `json:"label"`
+		Depth         uint8          `json:"depth"`
+		Amount        *bigint.BigInt `json:"amount"`
+		BucketDepth   uint8          `json:"bucketDepth"`
+		BlockNumber   uint64         `json:"blockNumber"`
+		ImmutableFlag bool           `json:"immutableFlag"`
+		Exists        bool           `json:"exists"`
+		BatchTTL      int64          `json:"batchTTL"`
+		Expired       bool           `json:"expired"`
+	}
+
 	BuyStampResponse struct {
 		BatchID BatchID `json:"batchID"`
 	}
@@ -45,6 +65,11 @@ type (
 
 	// Client is interface for communicating with Bee node API.
 	Client interface {
+		// Stamps fetches purchased stamp batches via /stamps endpoint.
+		Stamps(
+			ctx context.Context,
+		) (StampsResponse, error)
+
 		// BuyStamp buys a new postage stamp batch.
 		BuyStamp(
 			ctx context.Context,

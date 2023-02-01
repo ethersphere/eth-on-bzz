@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package client
+package clienttest
 
 import (
 	"context"
@@ -15,20 +15,23 @@ import (
 	"github.com/ethersphere/bee/pkg/swarm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/ethersphere/eth-on-bzz/pkg/client"
+	"github.com/ethersphere/eth-on-bzz/pkg/postage"
 )
 
 type TestSuite struct {
 	suite.Suite
-	Fact           func() Client
-	CurrentBatchID func(Client) (BatchID, error)
-	PrivKey        *ecdsa.PrivateKey
+	ClientFact  func() client.Client
+	PostageFact func(client.Client) postage.Postage
+	PrivKey     *ecdsa.PrivateKey
 }
 
-func (suite *TestSuite) TestStampsOk() {
+func (suite *TestSuite) TestBuyStampOk() {
 	t := suite.T()
 	t.Parallel()
 
-	c := suite.Fact()
+	c := suite.ClientFact()
 	ctx := context.Background()
 
 	stamp, err := c.BuyStamp(ctx, big.NewInt(10000000), 17, true)
@@ -36,11 +39,11 @@ func (suite *TestSuite) TestStampsOk() {
 	assert.NotEmpty(t, stamp.BatchID)
 }
 
-func (suite *TestSuite) TestStampsError() {
+func (suite *TestSuite) TestBuyStampError() {
 	t := suite.T()
 	t.Parallel()
 
-	c := suite.Fact()
+	c := suite.ClientFact()
 	ctx := context.Background()
 
 	// Assert invalid depth
@@ -58,10 +61,11 @@ func (suite *TestSuite) TestUploadDownloadOk() {
 	t := suite.T()
 	t.Parallel()
 
-	c := suite.Fact()
+	c := suite.ClientFact()
+	p := suite.PostageFact(c)
 	ctx := context.Background()
 
-	batchID, err := suite.CurrentBatchID(c)
+	batchID, err := p.CurrentBatchID()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, batchID)
 
@@ -99,12 +103,12 @@ func (suite *TestSuite) TestUploadError() {
 	t := suite.T()
 	t.Parallel()
 
-	c := suite.Fact()
+	c := suite.ClientFact()
 	ctx := context.Background()
 
 	data := randomBytes(t, 4)
 
-	resp, err := c.Upload(ctx, data, BatchID("invalid"))
+	resp, err := c.Upload(ctx, data, client.BatchID("invalid"))
 	assert.Error(t, err)
 	assert.Empty(t, resp)
 }
@@ -113,10 +117,10 @@ func (suite *TestSuite) TestDownloadError() {
 	t := suite.T()
 	t.Parallel()
 
-	c := suite.Fact()
+	c := suite.ClientFact()
 	ctx := context.Background()
 
-	addr, err := RandomAddress()
+	addr, err := client.RandomAddress()
 	assert.NoError(t, err)
 
 	reader, err := c.Download(ctx, addr)
@@ -128,19 +132,20 @@ func (suite *TestSuite) TestSocUploadOk() {
 	t := suite.T()
 	t.Parallel()
 
-	c := suite.Fact()
+	c := suite.ClientFact()
+	p := suite.PostageFact(c)
 	ctx := context.Background()
 
-	batchID, err := suite.CurrentBatchID(c)
+	batchID, err := p.CurrentBatchID()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, batchID)
 
 	idRaw := randomBytes(t, swarm.HashSize)
 	dataRaw := []byte("Ethereum blockchain data on Swarm")
-	data, sig, owner, err := SignSocData(idRaw, dataRaw, suite.PrivKey)
+	data, sig, owner, err := client.SignSocData(idRaw, dataRaw, suite.PrivKey)
 	assert.NoError(t, err)
 
-	resp, err := c.UploadSOC(ctx, owner, SocID(idRaw), data, sig, batchID)
+	resp, err := c.UploadSOC(ctx, owner, client.SocID(idRaw), data, sig, batchID)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, resp)
 
@@ -151,7 +156,7 @@ func (suite *TestSuite) TestSocUploadOk() {
 	assert.NoError(t, err)
 	respReader.Close()
 
-	assert.Equal(t, dataRaw, RawDataFromSOCResp(respData))
+	assert.Equal(t, dataRaw, client.RawDataFromSOCResp(respData))
 }
 
 func randomBytes(t *testing.T, size int) []byte {
