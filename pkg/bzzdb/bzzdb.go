@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"encoding/hex"
 	"errors"
 	"io"
 
@@ -54,11 +55,8 @@ type bzzdb struct {
 
 func (db *bzzdb) Has(key []byte) (bool, error) {
 	if _, err := db.Get(key); err != nil {
-		if errors.Is(err, errBzzDBNotFound) {
-			return false, nil
-		}
-
-		if errors.Is(err, client.ErrNotFound) {
+		if errors.Is(err, errBzzDBNotFound) ||
+			errors.Is(err, client.ErrNotFound) {
 			return false, nil
 		}
 
@@ -76,13 +74,14 @@ func (db *bzzdb) Get(key []byte) ([]byte, error) {
 	}
 
 	swarmKey := makeKey(key)
+	topic := client.Topic(hex.EncodeToString(swarmKey))
 
-	feedResp, err := db.beeCli.FeedGet(db.ctx, owner, client.Topic(string(swarmKey)))
+	feedResp, err := db.beeCli.FeedGet(db.ctx, owner, topic)
 	if err != nil {
 		return nil, err
 	}
 
-	addr := feedResp.Current
+	addr := client.RawDataFromSOCResp(feedResp.Current)
 	if bytes.Equal(addr, []byte(deletedSOCData)) {
 		return nil, errBzzDBNotFound
 	}
@@ -99,7 +98,7 @@ func (db *bzzdb) Get(key []byte) ([]byte, error) {
 
 //nolint:wrapcheck //relax
 func (db *bzzdb) Put(key []byte, value []byte) error {
-	batchID, err := db.postage.CurrentBatchID()
+	batchID, err := db.postage.CurrentBatchID(db.ctx)
 	if err != nil {
 		return err
 	}
@@ -112,12 +111,12 @@ func (db *bzzdb) Put(key []byte, value []byte) error {
 	swarmKey := makeKey(key)
 	rawData := uploadResp.Reference.Bytes()
 
-	_, sig, owner, err := client.SignSocData(swarmKey, rawData, db.privKey)
+	socData, sig, owner, err := client.SignSocData(swarmKey, rawData, db.privKey)
 	if err != nil {
 		return err
 	}
 
-	_, err = db.beeCli.UploadSOC(db.ctx, owner, client.SocID(swarmKey), rawData, sig, batchID)
+	_, err = db.beeCli.UploadSOC(db.ctx, owner, client.SocID(swarmKey), socData, sig, batchID)
 	if err != nil {
 		return err
 	}
@@ -127,7 +126,7 @@ func (db *bzzdb) Put(key []byte, value []byte) error {
 
 //nolint:wrapcheck //relax
 func (db *bzzdb) Delete(key []byte) error {
-	batchID, err := db.postage.CurrentBatchID()
+	batchID, err := db.postage.CurrentBatchID(db.ctx)
 	if err != nil {
 		return err
 	}
@@ -135,12 +134,12 @@ func (db *bzzdb) Delete(key []byte) error {
 	swarmKey := makeKey(key)
 	rawData := []byte(deletedSOCData)
 
-	_, sig, owner, err := client.SignSocData(swarmKey, rawData, db.privKey)
+	socData, sig, owner, err := client.SignSocData(swarmKey, rawData, db.privKey)
 	if err != nil {
 		return err
 	}
 
-	_, err = db.beeCli.UploadSOC(db.ctx, owner, client.SocID(swarmKey), rawData, sig, batchID)
+	_, err = db.beeCli.UploadSOC(db.ctx, owner, client.SocID(swarmKey), socData, sig, batchID)
 	if err != nil {
 		return err
 	}
