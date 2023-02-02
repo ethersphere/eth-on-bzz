@@ -29,9 +29,6 @@ const (
 func Test_Client_Integration(t *testing.T) {
 	t.Parallel()
 
-	// os.Setenv(envNodeAddress, "http://localhost")
-	// os.Setenv(envPrivKey, "dc85109859ffd3a1256fda9f0570c28c")
-
 	privKey := getPrivKey(t)
 
 	cfg := client.Config{
