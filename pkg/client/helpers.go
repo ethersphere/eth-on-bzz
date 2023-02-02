@@ -7,6 +7,8 @@ package client
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
+	"encoding"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 
@@ -29,6 +31,24 @@ func RandomAddress() (swarm.Address, error) {
 }
 
 var errSocInvalid = fmt.Errorf("SOC is not valid")
+
+type id struct {
+	topic []byte
+	index int
+}
+
+var _ encoding.BinaryMarshaler = (*id)(nil)
+
+func (i *id) MarshalBinary() ([]byte, error) {
+	idraw := make([]byte, 0, 8+len(i.topic))
+	idraw = append(idraw, i.topic...)
+
+	index := make([]byte, 8)
+	binary.BigEndian.PutUint64(index, uint64(i.index))
+	idraw = append(idraw, index...)
+
+	return crypto.LegacyKeccak256(idraw)
+}
 
 //nolint:wrapcheck //relax
 func SignSocData(

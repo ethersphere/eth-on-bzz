@@ -29,6 +29,7 @@ const (
 
 	headerImmutable = "Immutable"
 	headerBatchID   = api.SwarmPostageBatchIdHeader
+	headerFeedIndex = api.SwarmFeedIndexHeader
 
 	portAPI  = 1633
 	portAPId = 1635
@@ -200,7 +201,32 @@ func (c *client) FeedGet(
 	owner common.Address,
 	topic Topic,
 ) (FeedGetResponse, error) {
-	return FeedGetResponse{}, nil
+	resp := FeedGetResponse{}
+
+	h := http.Header{}
+
+	ownerParam := hex.EncodeToString(owner.Bytes())
+	topicParam := string(topic)
+	endpoint := c.makeEndpoint(portAPI, "feeds", ownerParam, topicParam)
+
+	//nolint:bodyclose // body is closed after handling error
+	httpResp, err := c.doRequest(ctx, http.MethodGet, endpoint, h, nil)
+	if err != nil {
+		return resp, fmt.Errorf("feeds get request failed: %w", err)
+	}
+
+	defer closeBody(httpResp)
+
+	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
+		return resp, fmt.Errorf("failed to decode response from feeds get  endpoint: %w", err)
+	}
+
+	resp.Current, err = hex.DecodeString(httpResp.Header.Get(headerFeedIndex))
+	if err != nil {
+		return resp, fmt.Errorf("failed to decode response from feeds get  endpoint: %w", err)
+	}
+
+	return resp, nil
 }
 
 func (c *client) makeEndpoint(port int, parts ...string) string {
