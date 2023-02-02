@@ -83,9 +83,9 @@ func (c *client) BuyStamp(
 	var resp BuyStampResponse
 
 	h := http.Header{}
-	h.Add(headerImmutable, fmt.Sprintf("%v", immutable))
+	h.Add(headerImmutable, strconv.FormatBool(immutable))
 
-	endpoint := c.makeEndpoint(portAPId, "stamps", amount.Text(10), fmt.Sprintf("%d", depth))
+	endpoint := c.makeEndpoint(portAPId, "stamps", amount.Text(10), strconv.Itoa(int(depth)))
 
 	//nolint:bodyclose // body is closed after handling error
 	httpResp, err := c.doRequest(ctx, http.MethodPost, endpoint, h, nil)

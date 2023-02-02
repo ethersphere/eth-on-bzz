@@ -28,6 +28,8 @@ func RandomAddress() (swarm.Address, error) {
 	return swarm.NewAddress(buf), nil
 }
 
+var errSocInvalid = fmt.Errorf("SOC is not valid")
+
 //nolint:wrapcheck //relax
 func SignSocData(
 	id SocID,
@@ -44,6 +46,10 @@ func SignSocData(
 	sch, err := soc.New(id, ch).Sign(signer)
 	if err != nil {
 		return nil, "", common.Address{}, err
+	}
+
+	if !soc.Valid(sch) {
+		return nil, "", common.Address{}, errSocInvalid
 	}
 
 	chunkData := sch.Data()
