@@ -25,7 +25,7 @@ type (
 
 	SocSignature string // hex encoded [65]bytes (swarm.SocSignatureSize)
 
-	Topic string // hex encoded []byte
+	Topic []byte
 
 	UploadResponse struct {
 		Reference swarm.Address `json:"reference"`
@@ -58,9 +58,9 @@ type (
 		Reference swarm.Address `json:"reference"`
 	}
 
-	FeedGetResponse struct {
+	FeedLatestResponse struct {
 		Reference swarm.Address `json:"reference"`
-		Current   []byte        // SwarmFeedIndexHeader
+		Current   uint64
 	}
 
 	// Client is interface for communicating with Bee node API.
@@ -107,11 +107,11 @@ type (
 			batchID BatchID,
 		) (UploadSOCResponse, error)
 
-		// FeedGet returns the most recent feed data from /feed/owner/topic.
-		FeedGet(
+		// FeedLatest returns the most recent feed's index from /feed/owner/topic.
+		FeedLatest(
 			ctx context.Context,
 			owner common.Address,
 			topic Topic,
-		) (FeedGetResponse, error)
+		) (FeedLatestResponse, error)
 	}
 )

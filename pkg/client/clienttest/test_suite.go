@@ -8,13 +8,15 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
-	"encoding/hex"
+	"io"
+	"math/big"
 	"testing"
+	"time"
 
+	"github.com/ethersphere/bee/pkg/swarm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/ethersphere/bee/pkg/swarm"
 	"github.com/ethersphere/eth-on-bzz/pkg/client"
 	"github.com/ethersphere/eth-on-bzz/pkg/postage"
 )
@@ -26,139 +28,108 @@ type TestSuite struct {
 	PrivKey     *ecdsa.PrivateKey
 }
 
-// func (suite *TestSuite) TestBuyStampOk() {
-// 	t := suite.T()
-// 	t.Parallel()
+func (suite *TestSuite) TestBuyStampOk() {
+	t := suite.T()
+	t.Parallel()
 
-// 	c := suite.ClientFact()
-// 	ctx := context.Background()
+	c := suite.ClientFact()
+	ctx := context.Background()
 
-// 	stamp, err := c.BuyStamp(ctx, big.NewInt(10000000), 17, true)
-// 	assert.NoError(t, err)
-// 	assert.NotEmpty(t, stamp.BatchID)
-// }
+	stamp, err := c.BuyStamp(ctx, big.NewInt(10000000), 17, true)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, stamp.BatchID)
+}
 
-// func (suite *TestSuite) TestBuyStampError() {
-// 	t := suite.T()
-// 	t.Parallel()
+func (suite *TestSuite) TestBuyStampError() {
+	t := suite.T()
+	t.Parallel()
 
-// 	c := suite.ClientFact()
-// 	ctx := context.Background()
+	c := suite.ClientFact()
+	ctx := context.Background()
 
-// 	// Assert invalid depth
-// 	stamp, err := c.BuyStamp(ctx, big.NewInt(10000000), 14, true)
-// 	assert.Error(t, err)
-// 	assert.Empty(t, stamp)
+	// Assert invalid depth
+	stamp, err := c.BuyStamp(ctx, big.NewInt(10000000), 14, true)
+	assert.Error(t, err)
+	assert.Empty(t, stamp)
 
-// 	// Assert low amount
-// 	stamp, err = c.BuyStamp(ctx, big.NewInt(0), 16, true)
-// 	assert.Error(t, err)
-// 	assert.Empty(t, stamp)
-// }
+	// Assert low amount
+	stamp, err = c.BuyStamp(ctx, big.NewInt(0), 16, true)
+	assert.Error(t, err)
+	assert.Empty(t, stamp)
+}
 
-// func (suite *TestSuite) TestUploadDownloadOk() {
-// 	t := suite.T()
-// 	t.Parallel()
+func (suite *TestSuite) TestUploadDownloadOk() {
+	t := suite.T()
+	t.Parallel()
 
-// 	c := suite.ClientFact()
-// 	p := suite.PostageFact(c)
-// 	ctx := context.Background()
+	c := suite.ClientFact()
+	p := suite.PostageFact(c)
+	ctx := context.Background()
 
-// 	batchID, err := p.CurrentBatchID(ctx)
-// 	assert.NoError(t, err)
-// 	assert.NotEmpty(t, batchID)
+	batchID, err := p.CurrentBatchID(ctx)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, batchID)
 
-// 	tests := []struct {
-// 		size int
-// 	}{
-// 		{size: 0},
-// 		{size: 1},
-// 		{size: 4},
-// 		{size: 1024},
-// 		{size: 4096},
-// 		{size: 8192},
-// 		{size: 16384},
-// 	}
+	tests := []struct {
+		size int
+	}{
+		{size: 0},
+		{size: 1},
+		{size: 4},
+		{size: 1024},
+		{size: 4096},
+		{size: 8192},
+		{size: 16384},
+	}
 
-// 	for _, tc := range tests {
-// 		data := randomBytes(t, tc.size)
+	for _, tc := range tests {
+		data := randomBytes(t, tc.size)
 
-// 		resp, err := c.Upload(ctx, data, batchID)
-// 		assert.NoError(t, err)
-// 		assert.NotEmpty(t, resp)
+		resp, err := c.Upload(ctx, data, batchID)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, resp)
 
-// 		reader, err := c.Download(ctx, resp.Reference)
-// 		assert.NoError(t, err)
-// 		assert.NotNil(t, reader)
+		reader, err := c.Download(ctx, resp.Reference)
+		assert.NoError(t, err)
+		assert.NotNil(t, reader)
 
-// 		downloadedData, err := io.ReadAll(reader)
-// 		assert.NoError(t, err)
+		downloadedData, err := io.ReadAll(reader)
+		assert.NoError(t, err)
 
-// 		assert.Equal(t, data, downloadedData)
-// 	}
-// }
+		assert.Equal(t, data, downloadedData)
+	}
+}
 
-// func (suite *TestSuite) TestUploadError() {
-// 	t := suite.T()
-// 	t.Parallel()
+func (suite *TestSuite) TestUploadError() {
+	t := suite.T()
+	t.Parallel()
 
-// 	c := suite.ClientFact()
-// 	ctx := context.Background()
+	c := suite.ClientFact()
+	ctx := context.Background()
 
-// 	data := randomBytes(t, 4)
+	data := randomBytes(t, 4)
 
-// 	resp, err := c.Upload(ctx, data, client.BatchID("invalid"))
-// 	assert.Error(t, err)
-// 	assert.Empty(t, resp)
-// }
+	resp, err := c.Upload(ctx, data, client.BatchID("invalid"))
+	assert.Error(t, err)
+	assert.Empty(t, resp)
+}
 
-// func (suite *TestSuite) TestDownloadError() {
-// 	t := suite.T()
-// 	t.Parallel()
+func (suite *TestSuite) TestDownloadError() {
+	t := suite.T()
+	t.Parallel()
 
-// 	c := suite.ClientFact()
-// 	ctx := context.Background()
+	c := suite.ClientFact()
+	ctx := context.Background()
 
-// 	addr, err := client.RandomAddress()
-// 	assert.NoError(t, err)
+	addr, err := client.RandomAddress()
+	assert.NoError(t, err)
 
-// 	reader, err := c.Download(ctx, addr)
-// 	assert.Error(t, err)
-// 	assert.Nil(t, reader)
-// }
+	reader, err := c.Download(ctx, addr)
+	assert.Error(t, err)
+	assert.Nil(t, reader)
+}
 
-// func (suite *TestSuite) TestSocUploadOk() {
-// 	t := suite.T()
-// 	t.Parallel()
-
-// 	c := suite.ClientFact()
-// 	p := suite.PostageFact(c)
-// 	ctx := context.Background()
-
-// 	batchID, err := p.CurrentBatchID(ctx)
-// 	assert.NoError(t, err)
-// 	assert.NotEmpty(t, batchID)
-
-// 	idRaw := randomBytes(t, swarm.HashSize)
-// 	dataRaw := []byte("Ethereum blockchain data on Swarm")
-// 	data, sig, owner, err := client.SignSocData(idRaw, dataRaw, suite.PrivKey)
-// 	assert.NoError(t, err)
-
-// 	resp, err := c.UploadSOC(ctx, owner, client.SocID(idRaw), data, sig, batchID)
-// 	assert.NoError(t, err)
-// 	assert.NotEmpty(t, resp)
-
-// 	respReader, err := c.DownloadChunk(ctx, resp.Reference)
-// 	assert.NoError(t, err)
-
-// 	respData, err := io.ReadAll(respReader)
-// 	assert.NoError(t, err)
-// 	respReader.Close()
-
-// 	assert.Equal(t, dataRaw, client.RawDataFromSOCResp(respData))
-// }
-
-func (suite *TestSuite) TestFeedsGetOk() {
+func (suite *TestSuite) TestSocUploadOk() {
 	t := suite.T()
 	t.Parallel()
 
@@ -179,9 +150,61 @@ func (suite *TestSuite) TestFeedsGetOk() {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, resp)
 
-	feedResp, err := c.FeedGet(ctx, owner, client.Topic(hex.EncodeToString(idRaw)))
+	respReader, err := c.DownloadChunk(ctx, resp.Reference)
 	assert.NoError(t, err)
-	assert.NotEmpty(t, feedResp)
+
+	respData, err := io.ReadAll(respReader)
+	assert.NoError(t, err)
+	assert.NoError(t, respReader.Close())
+
+	assert.Equal(t, dataRaw, client.RawDataFromSOCResp(respData))
+}
+
+func (suite *TestSuite) TestSocFeedUploadOk() {
+	t := suite.T()
+	t.Parallel()
+
+	c := suite.ClientFact()
+	p := suite.PostageFact(c)
+	ctx := context.Background()
+
+	batchID, err := p.CurrentBatchID(ctx)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, batchID)
+
+	index := 0
+	topic := client.Topic(randomBytes(t, swarm.HashSize))
+	dataRaw := randomBytes(t, swarm.HashSize)
+
+	feedID, err := client.FeedID(topic, index)
+	assert.NoError(t, err)
+
+	payload := client.PayloadWithTime(dataRaw, time.Now())
+
+	data, sig, owner, err := client.SignSocData(feedID, payload, suite.PrivKey)
+	assert.NoError(t, err)
+
+	resp, err := c.UploadSOC(ctx, owner, client.SocID(feedID), data, sig, batchID)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, resp)
+
+	ref, err := client.FeedUpdateReference(owner, topic, index)
+	assert.NoError(t, err)
+
+	respReader, err := c.DownloadChunk(ctx, swarm.NewAddress(ref))
+	assert.NoError(t, err)
+
+	respData, err := io.ReadAll(respReader)
+	assert.NoError(t, err)
+	assert.NoError(t, respReader.Close())
+
+	assert.Equal(t, payload, client.RawDataFromSOCResp(respData))
+
+	feedIndexResp, err := c.FeedLatest(ctx, owner, topic)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, feedIndexResp)
+
+	assert.Equal(t, uint64(1), feedIndexResp.Current)
 }
 
 func randomBytes(t *testing.T, size int) []byte {

@@ -211,27 +211,27 @@ func (c *mockClient) UploadSOC(
 	return resp, nil
 }
 
-func (c *mockClient) FeedGet(
+func (c *mockClient) FeedLatest(
 	ctx context.Context,
 	owner common.Address,
 	topic client.Topic,
-) (client.FeedGetResponse, error) {
+) (client.FeedLatestResponse, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	addr, exists := c.feeds[feedID(owner, string(topic))]
 	if !exists {
-		return client.FeedGetResponse{}, client.ErrNotFound
+		return client.FeedLatestResponse{}, client.ErrNotFound
 	}
 
-	data, exists := c.data[addr.ByteString()]
-	if !exists {
-		return client.FeedGetResponse{}, client.ErrNotFound
-	}
+	// data, exists := c.data[addr.ByteString()]
+	// if !exists {
+	// 	return client.FeedGetResponse{}, client.ErrNotFound
+	// }
 
-	resp := client.FeedGetResponse{
+	resp := client.FeedLatestResponse{
 		Reference: addr,
-		Current:   data,
+		// Current:   data,
 	}
 
 	return resp, nil

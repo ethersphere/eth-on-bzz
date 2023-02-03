@@ -7,6 +7,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -196,18 +197,19 @@ func (c *client) UploadSOC(
 	return resp, nil
 }
 
-func (c *client) FeedGet(
+func (c *client) FeedLatest(
 	ctx context.Context,
 	owner common.Address,
 	topic Topic,
-) (FeedGetResponse, error) {
-	resp := FeedGetResponse{}
+) (FeedLatestResponse, error) {
+	resp := FeedLatestResponse{}
 
 	h := http.Header{}
 
 	ownerParam := hex.EncodeToString(owner.Bytes())
-	topicParam := string(topic)
+	topicParam := hex.EncodeToString(topic)
 	endpoint := c.makeEndpoint(portAPI, "feeds", ownerParam, topicParam)
+	// endpoint += "?at=-1"
 
 	//nolint:bodyclose // body is closed after handling error
 	httpResp, err := c.doRequest(ctx, http.MethodGet, endpoint, h, nil)
@@ -221,12 +223,22 @@ func (c *client) FeedGet(
 		return resp, fmt.Errorf("failed to decode response from feeds get  endpoint: %w", err)
 	}
 
-	resp.Current, err = hex.DecodeString(httpResp.Header.Get(headerFeedIndex))
+	resp.Current, err = decodeIndexFromHeader(httpResp.Header.Get(headerFeedIndex))
 	if err != nil {
-		return resp, fmt.Errorf("failed to decode response from feeds get  endpoint: %w", err)
+		return resp, fmt.Errorf("failed to decode response from feeds get endpoint: %w", err)
 	}
 
 	return resp, nil
+}
+
+//nolint:wrapcheck //relax
+func decodeIndexFromHeader(val string) (uint64, error) {
+	ds, err := hex.DecodeString(val)
+	if err != nil {
+		return 0, err
+	}
+
+	return binary.BigEndian.Uint64(ds), nil
 }
 
 func (c *client) makeEndpoint(port int, parts ...string) string {

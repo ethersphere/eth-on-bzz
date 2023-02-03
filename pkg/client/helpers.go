@@ -7,10 +7,10 @@ package client
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
-	"encoding"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethersphere/bee/pkg/cac"
@@ -31,24 +31,6 @@ func RandomAddress() (swarm.Address, error) {
 }
 
 var errSocInvalid = fmt.Errorf("SOC is not valid")
-
-type id struct {
-	topic []byte
-	index int
-}
-
-var _ encoding.BinaryMarshaler = (*id)(nil)
-
-func (i *id) MarshalBinary() ([]byte, error) {
-	idraw := make([]byte, 0, 8+len(i.topic))
-	idraw = append(idraw, i.topic...)
-
-	index := make([]byte, 8)
-	binary.BigEndian.PutUint64(index, uint64(i.index))
-	idraw = append(idraw, index...)
-
-	return crypto.LegacyKeccak256(idraw)
-}
 
 //nolint:wrapcheck //relax
 func SignSocData(
@@ -76,17 +58,10 @@ func SignSocData(
 	signatureBytes := chunkData[swarm.HashSize : swarm.HashSize+swarm.SocSignatureSize]
 	signature := SocSignature(hex.EncodeToString(signatureBytes))
 
-	publicKey, err := signer.PublicKey()
+	owner, err := signer.EthereumAddress()
 	if err != nil {
 		return nil, "", common.Address{}, err
 	}
-
-	ownerBytes, err := crypto.NewEthereumAddress(*publicKey)
-	if err != nil {
-		return nil, "", common.Address{}, err
-	}
-
-	owner := common.BytesToAddress(ownerBytes)
 
 	return ch.Data(), signature, owner, nil
 }
@@ -98,20 +73,38 @@ func RawDataFromSOCResp(resp []byte) []byte {
 }
 
 //nolint:wrapcheck //relax
-func OwnerFromKey(privKey *ecdsa.PrivateKey) (common.Address, error) {
-	signer := crypto.NewDefaultSigner(privKey)
+func FeedID(topic Topic, index int) ([]byte, error) {
+	idx := make([]byte, 8)
+	binary.BigEndian.PutUint64(idx, uint64(index))
 
-	publicKey, err := signer.PublicKey()
+	fid := make([]byte, 0, 8+len(topic))
+	fid = append(fid, topic...)
+	fid = append(fid, idx...)
+
+	return crypto.LegacyKeccak256(fid)
+}
+
+//nolint:wrapcheck //relax
+func FeedUpdateReference(owner common.Address, topic Topic, index int) ([]byte, error) {
+	feedID, err := FeedID(topic, index)
 	if err != nil {
-		return common.Address{}, err
+		return nil, err
 	}
 
-	ownerBytes, err := crypto.NewEthereumAddress(*publicKey)
-	if err != nil {
-		return common.Address{}, err
-	}
+	ownerBytes := owner.Bytes()
 
-	owner := common.BytesToAddress(ownerBytes)
+	ref := make([]byte, 0, len(feedID)+len(ownerBytes))
+	ref = append(ref, feedID...)
+	ref = append(ref, ownerBytes...)
 
-	return owner, nil
+	return crypto.LegacyKeccak256(ref)
+}
+
+func PayloadWithTime(payload []byte, t time.Time) []byte {
+	res := make([]byte, 8, len(payload)+8)
+	binary.BigEndian.PutUint64(res, uint64(t.Unix()))
+
+	res = append(res, payload...)
+
+	return res
 }
