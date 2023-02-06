@@ -8,7 +8,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -42,21 +41,21 @@ func SignSocData(
 
 	ch, err := cac.New(payload)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
 
 	sch, err := soc.New(id, ch).Sign(signer)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
 
 	if !soc.Valid(sch) {
-		return nil, "", errSocInvalid
+		return nil, nil, errSocInvalid
 	}
 
 	chunkData := sch.Data()
 	signatureBytes := chunkData[swarm.HashSize : swarm.HashSize+swarm.SocSignatureSize]
-	signature := SocSignature(hex.EncodeToString(signatureBytes))
+	signature := SocSignature(signatureBytes)
 
 	return ch.Data(), signature, nil
 }

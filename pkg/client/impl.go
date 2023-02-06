@@ -181,7 +181,7 @@ func (c *client) UploadSoc(
 	ownerParam := hex.EncodeToString(owner.Bytes())
 	idParam := hex.EncodeToString(id)
 	endpoint := c.makeEndpoint(portAPI, "soc", ownerParam, idParam)
-	endpoint += "?sig=" + string(signature)
+	endpoint += "?sig=" + hex.EncodeToString(signature)
 
 	//nolint:bodyclose // body is closed after handling error
 	httpResp, err := c.doRequest(ctx, http.MethodPost, endpoint, h, dataReader)

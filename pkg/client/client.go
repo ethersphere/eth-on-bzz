@@ -23,7 +23,7 @@ type (
 
 	SocID = soc.ID
 
-	SocSignature string // hex encoded [65]bytes (swarm.SocSignatureSize)
+	SocSignature []byte // [65]bytes (swarm.SocSignatureSize)
 
 	Topic []byte
 
