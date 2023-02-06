@@ -11,6 +11,7 @@ import (
 	"io"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethersphere/bee/pkg/swarm"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ type TestSuite struct {
 	suite.Suite
 	ClientFact  func() client.Client
 	PostageFact func(client.Client) postage.Postage
-	PrivKey     *ecdsa.PrivateKey
+	PrivateKey  *ecdsa.PrivateKey
 }
 
 func (suite *TestSuite) TestBuyStampOk() {
@@ -51,7 +52,7 @@ func (suite *TestSuite) TestBuyStampError() {
 	assert.Error(t, err)
 	assert.Empty(t, stamp)
 
-	// Assert low amount
+	// Assert invalid amount
 	stamp, err = c.BuyStamp(ctx, big.NewInt(0), 16, true)
 	assert.Error(t, err)
 	assert.Empty(t, stamp)
@@ -140,12 +141,15 @@ func (suite *TestSuite) TestSocUploadOk() {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, batchID)
 
-	idRaw := randomBytes(t, swarm.HashSize)
-	dataRaw := []byte("Ethereum blockchain data on Swarm")
-	data, sig, owner, err := client.SignSocData(idRaw, dataRaw, suite.PrivKey)
+	owner, err := client.OwnerFromKey(suite.PrivateKey)
 	assert.NoError(t, err)
 
-	resp, err := c.UploadSOC(ctx, owner, client.SocID(idRaw), data, sig, batchID)
+	socID := client.SocID(randomBytes(t, swarm.HashSize))
+	dataRaw := []byte("Ethereum blockchain data on Swarm")
+	data, sig, err := client.SignSocData(socID, dataRaw, suite.PrivateKey)
+	assert.NoError(t, err)
+
+	resp, err := c.UploadSoc(ctx, owner, socID, data, sig, batchID)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, resp)
 
@@ -154,9 +158,87 @@ func (suite *TestSuite) TestSocUploadOk() {
 
 	respData, err := io.ReadAll(respReader)
 	assert.NoError(t, err)
-	respReader.Close()
+	assert.NoError(t, respReader.Close())
 
 	assert.Equal(t, dataRaw, client.RawDataFromSOCResp(respData))
+}
+
+func (suite *TestSuite) TestFeedUpdatesOk() {
+	t := suite.T()
+	t.Parallel()
+
+	c := suite.ClientFact()
+	p := suite.PostageFact(c)
+	ctx := context.Background()
+
+	batchID, err := p.CurrentBatchID(ctx)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, batchID)
+
+	topic := client.Topic(randomBytes(t, swarm.HashSize))
+	owner, err := client.OwnerFromKey(suite.PrivateKey)
+	assert.NoError(t, err)
+
+	// Fetching index for first time should return error because there are
+	// no feed updates at this point
+	feedIndexResp, err := c.FeedIndexLatest(ctx, owner, topic)
+	assert.Error(t, err)
+	assert.Empty(t, feedIndexResp)
+
+	// Upload first feed update and assert latests feed index
+	uploadFeedUpdate(t, c, batchID, suite.PrivateKey, 0, topic, randomBytes(t, swarm.HashSize))
+	feedIndexResp, err = c.FeedIndexLatest(ctx, owner, topic)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(0), feedIndexResp.Current)
+	assert.Equal(t, uint64(1), feedIndexResp.Next)
+
+	// Upload second feed updated and assert latests feed index
+	uploadFeedUpdate(t, c, batchID, suite.PrivateKey, 1, topic, randomBytes(t, swarm.HashSize))
+	feedIndexResp, err = c.FeedIndexLatest(ctx, owner, topic)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), feedIndexResp.Current)
+	assert.Equal(t, uint64(2), feedIndexResp.Next)
+}
+
+func uploadFeedUpdate(
+	t *testing.T,
+	c client.Client,
+	batchID client.BatchID,
+	privateKey *ecdsa.PrivateKey,
+	index int,
+	topic client.Topic,
+	dataRaw []byte,
+) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	owner, err := client.OwnerFromKey(privateKey)
+	assert.NoError(t, err)
+
+	socID, err := client.FeedID(topic, index)
+	assert.NoError(t, err)
+
+	payload := client.PayloadWithTime(dataRaw, time.Unix(0, 0))
+
+	data, sig, err := client.SignSocData(socID, payload, privateKey)
+	assert.NoError(t, err)
+
+	resp, err := c.UploadSoc(ctx, owner, socID, data, sig, batchID)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, resp)
+
+	ref, err := client.FeedUpdateReference(owner, topic, index)
+	assert.NoError(t, err)
+
+	respReader, err := c.DownloadChunk(ctx, swarm.NewAddress(ref))
+	assert.NoError(t, err)
+
+	respData, err := io.ReadAll(respReader)
+	assert.NoError(t, err)
+	assert.NoError(t, respReader.Close())
+
+	assert.Equal(t, payload, client.RawDataFromSOCResp(respData))
 }
 
 func randomBytes(t *testing.T, size int) []byte {

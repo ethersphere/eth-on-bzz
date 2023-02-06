@@ -19,12 +19,12 @@ import (
 func Test_Mock_Client(t *testing.T) {
 	t.Parallel()
 
-	privKey, err := crypto.GenerateSecp256k1Key()
+	key, err := crypto.GenerateSecp256k1Key()
 	assert.NoError(t, err)
 
 	suite.Run(t, &clienttest.TestSuite{
 		ClientFact:  mock.NewClient,
 		PostageFact: postage.New,
-		PrivKey:     privKey,
+		PrivateKey:  key,
 	})
 }
