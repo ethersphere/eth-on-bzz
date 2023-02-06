@@ -28,9 +28,10 @@ const (
 	userAgent   = "eth-on-bzz"
 	contentType = "application/json"
 
-	headerImmutable = "Immutable"
-	headerBatchID   = api.SwarmPostageBatchIdHeader
-	headerFeedIndex = api.SwarmFeedIndexHeader
+	headerImmutable        = "Immutable"
+	headerBatchID          = api.SwarmPostageBatchIdHeader
+	headerFeedCurrentIndex = api.SwarmFeedIndexHeader
+	headerFeedNextIndex    = api.SwarmFeedIndexNextHeader
 
 	portAPI  = 1633
 	portAPId = 1635
@@ -162,15 +163,15 @@ func (c *client) DownloadChunk(
 	return httpResp.Body, nil
 }
 
-func (c *client) UploadSOC(
+func (c *client) UploadSoc(
 	ctx context.Context,
 	owner common.Address,
 	id SocID,
 	data []byte,
 	signature SocSignature,
 	batchID BatchID,
-) (UploadSOCResponse, error) {
-	var resp UploadSOCResponse
+) (UploadSocResponse, error) {
+	var resp UploadSocResponse
 
 	h := http.Header{}
 	h.Add(headerBatchID, string(batchID))
@@ -197,35 +198,39 @@ func (c *client) UploadSOC(
 	return resp, nil
 }
 
-func (c *client) FeedLatest(
+func (c *client) FeedIndexLatest(
 	ctx context.Context,
 	owner common.Address,
 	topic Topic,
-) (FeedLatestResponse, error) {
-	resp := FeedLatestResponse{}
+) (FeedIndexResponse, error) {
+	resp := FeedIndexResponse{}
 
 	h := http.Header{}
 
 	ownerParam := hex.EncodeToString(owner.Bytes())
 	topicParam := hex.EncodeToString(topic)
 	endpoint := c.makeEndpoint(portAPI, "feeds", ownerParam, topicParam)
-	// endpoint += "?at=-1"
 
 	//nolint:bodyclose // body is closed after handling error
 	httpResp, err := c.doRequest(ctx, http.MethodGet, endpoint, h, nil)
 	if err != nil {
-		return resp, fmt.Errorf("feeds get request failed: %w", err)
+		return resp, fmt.Errorf("feeds request failed: %w", err)
 	}
 
 	defer closeBody(httpResp)
 
 	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
-		return resp, fmt.Errorf("failed to decode response from feeds get  endpoint: %w", err)
+		return resp, fmt.Errorf("failed to decode response from feeds endpoint: %w", err)
 	}
 
-	resp.Current, err = decodeIndexFromHeader(httpResp.Header.Get(headerFeedIndex))
+	resp.Current, err = decodeIndexFromHeader(httpResp.Header.Get(headerFeedCurrentIndex))
 	if err != nil {
-		return resp, fmt.Errorf("failed to decode response from feeds get endpoint: %w", err)
+		return resp, fmt.Errorf("failed to decode header data from feeds endpoint: %w", err)
+	}
+
+	resp.Next, err = decodeIndexFromHeader(httpResp.Header.Get(headerFeedNextIndex))
+	if err != nil {
+		return resp, fmt.Errorf("failed to decode header data from feeds endpoint: %w", err)
 	}
 
 	return resp, nil

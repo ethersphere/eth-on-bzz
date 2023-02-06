@@ -37,33 +37,28 @@ func SignSocData(
 	id SocID,
 	payload []byte,
 	privKey *ecdsa.PrivateKey,
-) ([]byte, SocSignature, common.Address, error) {
+) ([]byte, SocSignature, error) {
 	signer := crypto.NewDefaultSigner(privKey)
 
 	ch, err := cac.New(payload)
 	if err != nil {
-		return nil, "", common.Address{}, err
+		return nil, "", err
 	}
 
 	sch, err := soc.New(id, ch).Sign(signer)
 	if err != nil {
-		return nil, "", common.Address{}, err
+		return nil, "", err
 	}
 
 	if !soc.Valid(sch) {
-		return nil, "", common.Address{}, errSocInvalid
+		return nil, "", errSocInvalid
 	}
 
 	chunkData := sch.Data()
 	signatureBytes := chunkData[swarm.HashSize : swarm.HashSize+swarm.SocSignatureSize]
 	signature := SocSignature(hex.EncodeToString(signatureBytes))
 
-	owner, err := signer.EthereumAddress()
-	if err != nil {
-		return nil, "", common.Address{}, err
-	}
-
-	return ch.Data(), signature, owner, nil
+	return ch.Data(), signature, nil
 }
 
 func RawDataFromSOCResp(resp []byte) []byte {
@@ -73,7 +68,7 @@ func RawDataFromSOCResp(resp []byte) []byte {
 }
 
 //nolint:wrapcheck //relax
-func FeedID(topic Topic, index int) ([]byte, error) {
+func FeedID(topic Topic, index int) (SocID, error) {
 	idx := make([]byte, 8)
 	binary.BigEndian.PutUint64(idx, uint64(index))
 
@@ -107,4 +102,11 @@ func PayloadWithTime(payload []byte, t time.Time) []byte {
 	res = append(res, payload...)
 
 	return res
+}
+
+//nolint:wrapcheck //relax
+func OwnerFromPrivKey(privKey *ecdsa.PrivateKey) (common.Address, error) {
+	signer := crypto.NewDefaultSigner(privKey)
+
+	return signer.EthereumAddress()
 }

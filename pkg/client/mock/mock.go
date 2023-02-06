@@ -188,40 +188,40 @@ func (c *mockClient) DownloadChunk(
 	return c.Download(ctx, addr)
 }
 
-func (c *mockClient) UploadSOC(
+func (c *mockClient) UploadSoc(
 	ctx context.Context,
 	owner common.Address,
 	id client.SocID,
 	data []byte,
 	signature client.SocSignature,
 	batchID client.BatchID,
-) (client.UploadSOCResponse, error) {
+) (client.UploadSocResponse, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	addr, err := c.upload(ctx, makeSOCData(data), batchID)
 	if err != nil {
-		return client.UploadSOCResponse{}, err
+		return client.UploadSocResponse{}, err
 	}
 
 	c.feeds[feedID(owner, hex.EncodeToString(id))] = addr
 
-	resp := client.UploadSOCResponse{Reference: addr}
+	resp := client.UploadSocResponse{Reference: addr}
 
 	return resp, nil
 }
 
-func (c *mockClient) FeedLatest(
+func (c *mockClient) FeedIndexLatest(
 	ctx context.Context,
 	owner common.Address,
 	topic client.Topic,
-) (client.FeedLatestResponse, error) {
+) (client.FeedIndexResponse, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	addr, exists := c.feeds[feedID(owner, string(topic))]
 	if !exists {
-		return client.FeedLatestResponse{}, client.ErrNotFound
+		return client.FeedIndexResponse{}, client.ErrNotFound
 	}
 
 	// data, exists := c.data[addr.ByteString()]
@@ -229,7 +229,7 @@ func (c *mockClient) FeedLatest(
 	// 	return client.FeedGetResponse{}, client.ErrNotFound
 	// }
 
-	resp := client.FeedLatestResponse{
+	resp := client.FeedIndexResponse{
 		Reference: addr,
 		// Current:   data,
 	}
