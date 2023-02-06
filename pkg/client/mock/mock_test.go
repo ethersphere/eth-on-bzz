@@ -4,15 +4,27 @@
 
 package mock_test
 
-// func Test_Mock_Client(t *testing.T) {
-// 	t.Parallel()
+import (
+	"testing"
 
-// privKey, err := crypto.GenerateSecp256k1Key()
-// assert.NoError(t, err)
+	"github.com/ethersphere/bee/pkg/crypto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 
-// suite.Run(t, &clienttest.TestSuite{
-// 	ClientFact:  mock.NewClient,
-// 	PostageFact: postage.New,
-// 	PrivKey:     privKey,
-// })
-// }
+	"github.com/ethersphere/eth-on-bzz/pkg/client/clienttest"
+	"github.com/ethersphere/eth-on-bzz/pkg/client/mock"
+	"github.com/ethersphere/eth-on-bzz/pkg/postage"
+)
+
+func Test_Mock_Client(t *testing.T) {
+	t.Parallel()
+
+	key, err := crypto.GenerateSecp256k1Key()
+	assert.NoError(t, err)
+
+	suite.Run(t, &clienttest.TestSuite{
+		ClientFact:  mock.NewClient,
+		PostageFact: postage.New,
+		PrivateKey:  key,
+	})
+}

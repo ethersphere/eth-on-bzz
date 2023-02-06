@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethersphere/bee/pkg/bigint"
+	"github.com/ethersphere/bee/pkg/crypto"
 	"github.com/ethersphere/bee/pkg/postage/testing"
 	"github.com/ethersphere/bee/pkg/swarm"
 
@@ -27,6 +28,7 @@ var (
 	errStampUsageExceeded    = fmt.Errorf("stamp usage exceeded")
 	errBuyStampInvalidAmount = fmt.Errorf("amount must be positive non zero value")
 	errBuyStampInvalidDepth  = fmt.Errorf("depth is not in acceptable range")
+	errNoFeedUpdates         = fmt.Errorf("no feed updates")
 )
 
 func NewClient() client.Client {
@@ -130,7 +132,7 @@ func (c *mockClient) Upload(
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	addr, err := c.upload(ctx, data, batchID)
+	addr, err := c.upload(newCacAddress(data), data, batchID)
 
 	resp := client.UploadResponse{Reference: addr}
 
@@ -138,7 +140,7 @@ func (c *mockClient) Upload(
 }
 
 func (c *mockClient) upload(
-	ctx context.Context,
+	addresser addresser,
 	data []byte,
 	batchID client.BatchID,
 ) (swarm.Address, error) {
@@ -151,9 +153,9 @@ func (c *mockClient) upload(
 		return swarm.ZeroAddress, fmt.Errorf("stamp usage exceeded: %w", err)
 	}
 
-	addr, err := c.newUniqueAddress(ctx)
+	addr, err := addresser()
 	if err != nil {
-		return swarm.ZeroAddress, fmt.Errorf("failed to create unique address: %w", err)
+		return swarm.ZeroAddress, fmt.Errorf("failed to create address: %w", err)
 	}
 
 	c.data[addr.ByteString()] = data
@@ -191,7 +193,7 @@ func (c *mockClient) DownloadChunk(
 func (c *mockClient) UploadSoc(
 	ctx context.Context,
 	owner common.Address,
-	id client.SocID,
+	socID client.SocID,
 	data []byte,
 	signature client.SocSignature,
 	batchID client.BatchID,
@@ -199,12 +201,12 @@ func (c *mockClient) UploadSoc(
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	addr, err := c.upload(ctx, makeSOCData(data), batchID)
+	addr, err := c.upload(newSocAddresser(owner, socID), makeSOCData(data), batchID)
 	if err != nil {
 		return client.UploadSocResponse{}, err
 	}
 
-	c.feeds[feedID(owner, hex.EncodeToString(id))] = addr
+	c.feeds[feedID(owner, hex.EncodeToString(socID))] = addr
 
 	resp := client.UploadSocResponse{Reference: addr}
 
@@ -219,19 +221,34 @@ func (c *mockClient) FeedIndexLatest(
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	addr, exists := c.feeds[feedID(owner, string(topic))]
-	if !exists {
-		return client.FeedIndexResponse{}, client.ErrNotFound
+	var (
+		addr   swarm.Address
+		exists bool
+		count  int
+	)
+
+	for i := 0; ; i++ {
+		socID, err := client.FeedID(topic, i)
+		if err != nil {
+			return client.FeedIndexResponse{}, fmt.Errorf("failed to generate feed id: %w", err)
+		}
+
+		addr, exists = c.feeds[feedID(owner, hex.EncodeToString(socID))]
+		if !exists {
+			break
+		}
+
+		count++
 	}
 
-	// data, exists := c.data[addr.ByteString()]
-	// if !exists {
-	// 	return client.FeedGetResponse{}, client.ErrNotFound
-	// }
+	if count == 0 {
+		return client.FeedIndexResponse{}, errNoFeedUpdates
+	}
 
 	resp := client.FeedIndexResponse{
 		Reference: addr,
-		// Current:   data,
+		Current:   uint64(count) - 1,
+		Next:      uint64(count),
 	}
 
 	return resp, nil
@@ -248,22 +265,35 @@ func feedID(owner common.Address, id string) string {
 	return fmt.Sprintf("%s-%s", owner.String(), id)
 }
 
-func (c *mockClient) newUniqueAddress(ctx context.Context) (swarm.Address, error) {
-	for {
-		select {
-		case <-ctx.Done():
-			return swarm.ZeroAddress, ctx.Err() //nolint:wrapcheck // relax
+type addresser = func() (swarm.Address, error)
 
-		default:
-			addr, err := client.RandomAddress()
-			if err != nil {
-				continue
-			}
-
-			if _, exists := c.data[addr.ByteString()]; !exists {
-				return addr, nil
-			}
+func newCacAddress(data []byte) addresser {
+	//nolint:wrapcheck // relax
+	return func() (swarm.Address, error) {
+		hash, err := crypto.LegacyKeccak256(data)
+		if err != nil {
+			return swarm.ZeroAddress, err
 		}
+
+		return swarm.NewAddress(hash), nil
+	}
+}
+
+func newSocAddresser(owner common.Address, socID client.SocID) addresser {
+	//nolint:wrapcheck // relax
+	return func() (swarm.Address, error) {
+		ownerBytes := owner.Bytes()
+
+		ref := make([]byte, 0, len(socID)+len(ownerBytes))
+		ref = append(ref, socID...)
+		ref = append(ref, ownerBytes...)
+
+		hash, err := crypto.LegacyKeccak256(ref)
+		if err != nil {
+			return swarm.ZeroAddress, err
+		}
+
+		return swarm.NewAddress(hash), nil
 	}
 }
 
