@@ -7,6 +7,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -27,8 +28,10 @@ const (
 	userAgent   = "eth-on-bzz"
 	contentType = "application/json"
 
-	headerImmutable = "Immutable"
-	headerBatchID   = api.SwarmPostageBatchIdHeader
+	headerImmutable        = "Immutable"
+	headerBatchID          = api.SwarmPostageBatchIdHeader
+	headerFeedCurrentIndex = api.SwarmFeedIndexHeader
+	headerFeedNextIndex    = api.SwarmFeedIndexNextHeader
 
 	portAPI  = 1633
 	portAPId = 1635
@@ -83,9 +86,9 @@ func (c *client) BuyStamp(
 	var resp BuyStampResponse
 
 	h := http.Header{}
-	h.Add(headerImmutable, fmt.Sprintf("%v", immutable))
+	h.Add(headerImmutable, strconv.FormatBool(immutable))
 
-	endpoint := c.makeEndpoint(portAPId, "stamps", amount.Text(10), fmt.Sprintf("%d", depth))
+	endpoint := c.makeEndpoint(portAPId, "stamps", amount.Text(10), strconv.Itoa(int(depth)))
 
 	//nolint:bodyclose // body is closed after handling error
 	httpResp, err := c.doRequest(ctx, http.MethodPost, endpoint, h, nil)
@@ -160,15 +163,15 @@ func (c *client) DownloadChunk(
 	return httpResp.Body, nil
 }
 
-func (c *client) UploadSOC(
+func (c *client) UploadSoc(
 	ctx context.Context,
 	owner common.Address,
 	id SocID,
 	data []byte,
 	signature SocSignature,
 	batchID BatchID,
-) (UploadSOCResponse, error) {
-	var resp UploadSOCResponse
+) (UploadSocResponse, error) {
+	var resp UploadSocResponse
 
 	h := http.Header{}
 	h.Add(headerBatchID, string(batchID))
@@ -178,7 +181,7 @@ func (c *client) UploadSOC(
 	ownerParam := hex.EncodeToString(owner.Bytes())
 	idParam := hex.EncodeToString(id)
 	endpoint := c.makeEndpoint(portAPI, "soc", ownerParam, idParam)
-	endpoint += "?sig=" + string(signature)
+	endpoint += "?sig=" + hex.EncodeToString(signature)
 
 	//nolint:bodyclose // body is closed after handling error
 	httpResp, err := c.doRequest(ctx, http.MethodPost, endpoint, h, dataReader)
@@ -195,12 +198,52 @@ func (c *client) UploadSOC(
 	return resp, nil
 }
 
-func (c *client) FeedGet(
+func (c *client) FeedIndexLatest(
 	ctx context.Context,
 	owner common.Address,
 	topic Topic,
-) (FeedGetResponse, error) {
-	return FeedGetResponse{}, nil
+) (FeedIndexResponse, error) {
+	resp := FeedIndexResponse{}
+
+	h := http.Header{}
+
+	ownerParam := hex.EncodeToString(owner.Bytes())
+	topicParam := hex.EncodeToString(topic)
+	endpoint := c.makeEndpoint(portAPI, "feeds", ownerParam, topicParam)
+
+	//nolint:bodyclose // body is closed after handling error
+	httpResp, err := c.doRequest(ctx, http.MethodGet, endpoint, h, nil)
+	if err != nil {
+		return resp, fmt.Errorf("feeds request failed: %w", err)
+	}
+
+	defer closeBody(httpResp)
+
+	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
+		return resp, fmt.Errorf("failed to decode response from feeds endpoint: %w", err)
+	}
+
+	resp.Current, err = decodeIndexFromHeader(httpResp.Header.Get(headerFeedCurrentIndex))
+	if err != nil {
+		return resp, fmt.Errorf("failed to decode header data from feeds endpoint: %w", err)
+	}
+
+	resp.Next, err = decodeIndexFromHeader(httpResp.Header.Get(headerFeedNextIndex))
+	if err != nil {
+		return resp, fmt.Errorf("failed to decode header data from feeds endpoint: %w", err)
+	}
+
+	return resp, nil
+}
+
+//nolint:wrapcheck //relax
+func decodeIndexFromHeader(val string) (uint64, error) {
+	ds, err := hex.DecodeString(val)
+	if err != nil {
+		return 0, err
+	}
+
+	return binary.BigEndian.Uint64(ds), nil
 }
 
 func (c *client) makeEndpoint(port int, parts ...string) string {

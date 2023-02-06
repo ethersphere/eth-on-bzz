@@ -23,16 +23,11 @@ import (
 
 const (
 	envNodeAddress = "NODE_ADDRESS"
-	envPrivKey     = "PRIVATE_KEY"
+	envPrivateKey  = "PRIVATE_KEY"
 )
 
 func Test_Client_Integration(t *testing.T) {
 	t.Parallel()
-
-	// os.Setenv(envNodeAddress, "http://localhost")
-	// os.Setenv(envPrivKey, "dc85109859ffd3a1256fda9f0570c28c")
-
-	privKey := getPrivKey(t)
 
 	cfg := client.Config{
 		NodeURL: getEnv(t, envNodeAddress),
@@ -43,18 +38,18 @@ func Test_Client_Integration(t *testing.T) {
 			return client.NewClient(cfg)
 		},
 		PostageFact: postage.New,
-		PrivKey:     privKey,
+		PrivateKey:  getPrivateKey(t),
 	})
 }
 
-func getPrivKey(t *testing.T) *ecdsa.PrivateKey {
+func getPrivateKey(t *testing.T) *ecdsa.PrivateKey {
 	t.Helper()
 
-	privKeyRaw := getEnv(t, envPrivKey)
-	privKey, err := crypto.DecodeSecp256k1PrivateKey([]byte(privKeyRaw))
+	keyRaw := getEnv(t, envPrivateKey)
+	key, err := crypto.DecodeSecp256k1PrivateKey([]byte(keyRaw))
 	assert.NoError(t, err)
 
-	return privKey
+	return key
 }
 
 func getEnv(t *testing.T, env string) string {
