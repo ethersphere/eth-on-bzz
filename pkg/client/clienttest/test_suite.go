@@ -25,7 +25,7 @@ type TestSuite struct {
 	suite.Suite
 	ClientFact  func() client.Client
 	PostageFact func(client.Client) postage.Postage
-	PrivKey     *ecdsa.PrivateKey
+	PrivateKey  *ecdsa.PrivateKey
 }
 
 func (suite *TestSuite) TestBuyStampOk() {
@@ -141,12 +141,12 @@ func (suite *TestSuite) TestSocUploadOk() {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, batchID)
 
-	owner, err := client.OwnerFromPrivKey(suite.PrivKey)
+	owner, err := client.OwnerFromKey(suite.PrivateKey)
 	assert.NoError(t, err)
 
 	socID := client.SocID(randomBytes(t, swarm.HashSize))
 	dataRaw := []byte("Ethereum blockchain data on Swarm")
-	data, sig, err := client.SignSocData(socID, dataRaw, suite.PrivKey)
+	data, sig, err := client.SignSocData(socID, dataRaw, suite.PrivateKey)
 	assert.NoError(t, err)
 
 	resp, err := c.UploadSoc(ctx, owner, socID, data, sig, batchID)
@@ -176,7 +176,7 @@ func (suite *TestSuite) TestFeedUpdatesOk() {
 	assert.NotEmpty(t, batchID)
 
 	topic := client.Topic(randomBytes(t, swarm.HashSize))
-	owner, err := client.OwnerFromPrivKey(suite.PrivKey)
+	owner, err := client.OwnerFromKey(suite.PrivateKey)
 	assert.NoError(t, err)
 
 	// Fetching index for first time should return error because there are
@@ -186,14 +186,14 @@ func (suite *TestSuite) TestFeedUpdatesOk() {
 	assert.Empty(t, feedIndexResp)
 
 	// Upload first feed update and assert latests feed index
-	uploadFeedUpdate(t, c, batchID, suite.PrivKey, 0, topic, randomBytes(t, swarm.HashSize))
+	uploadFeedUpdate(t, c, batchID, suite.PrivateKey, 0, topic, randomBytes(t, swarm.HashSize))
 	feedIndexResp, err = c.FeedIndexLatest(ctx, owner, topic)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(0), feedIndexResp.Current)
 	assert.Equal(t, uint64(1), feedIndexResp.Next)
 
 	// Upload second feed updated and assert latests feed index
-	uploadFeedUpdate(t, c, batchID, suite.PrivKey, 1, topic, randomBytes(t, swarm.HashSize))
+	uploadFeedUpdate(t, c, batchID, suite.PrivateKey, 1, topic, randomBytes(t, swarm.HashSize))
 	feedIndexResp, err = c.FeedIndexLatest(ctx, owner, topic)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), feedIndexResp.Current)
@@ -204,7 +204,7 @@ func uploadFeedUpdate(
 	t *testing.T,
 	c client.Client,
 	batchID client.BatchID,
-	privKey *ecdsa.PrivateKey,
+	privateKey *ecdsa.PrivateKey,
 	index int,
 	topic client.Topic,
 	dataRaw []byte,
@@ -213,7 +213,7 @@ func uploadFeedUpdate(
 
 	ctx := context.Background()
 
-	owner, err := client.OwnerFromPrivKey(privKey)
+	owner, err := client.OwnerFromKey(privateKey)
 	assert.NoError(t, err)
 
 	socID, err := client.FeedID(topic, index)
@@ -221,7 +221,7 @@ func uploadFeedUpdate(
 
 	payload := client.PayloadWithTime(dataRaw, time.Unix(0, 0))
 
-	data, sig, err := client.SignSocData(socID, payload, privKey)
+	data, sig, err := client.SignSocData(socID, payload, privateKey)
 	assert.NoError(t, err)
 
 	resp, err := c.UploadSoc(ctx, owner, socID, data, sig, batchID)

@@ -104,8 +104,8 @@ func PayloadWithTime(payload []byte, t time.Time) []byte {
 }
 
 //nolint:wrapcheck //relax
-func OwnerFromPrivKey(privKey *ecdsa.PrivateKey) (common.Address, error) {
-	signer := crypto.NewDefaultSigner(privKey)
+func OwnerFromKey(key *ecdsa.PrivateKey) (common.Address, error) {
+	signer := crypto.NewDefaultSigner(key)
 
 	return signer.EthereumAddress()
 }
