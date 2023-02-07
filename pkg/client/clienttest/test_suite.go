@@ -121,9 +121,7 @@ func (suite *TestSuite) TestDownloadError() {
 	c := suite.ClientFact()
 	ctx := context.Background()
 
-	addr, err := client.RandomAddress()
-	assert.NoError(t, err)
-
+	addr := swarm.NewAddress(randomBytes(t, swarm.HashSize))
 	reader, err := c.Download(ctx, addr)
 	assert.Error(t, err)
 	assert.Nil(t, reader)
@@ -160,7 +158,7 @@ func (suite *TestSuite) TestSocUploadOk() {
 	assert.NoError(t, err)
 	assert.NoError(t, respReader.Close())
 
-	assert.Equal(t, dataRaw, client.RawDataFromSOCResp(respData))
+	assert.Equal(t, dataRaw, client.RawDataFromSocResp(respData))
 }
 
 func (suite *TestSuite) TestFeedUpdatesOk() {
@@ -182,8 +180,9 @@ func (suite *TestSuite) TestFeedUpdatesOk() {
 	// Fetching index for first time should return error because there are
 	// no feed updates at this point
 	feedIndexResp, err := c.FeedIndexLatest(ctx, owner, topic)
-	assert.Error(t, err)
-	assert.Empty(t, feedIndexResp)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(0), feedIndexResp.Current)
+	assert.Equal(t, uint64(0), feedIndexResp.Next)
 
 	// Upload first feed update and assert latests feed index
 	uploadFeedUpdate(t, c, batchID, suite.PrivateKey, 0, topic, randomBytes(t, swarm.HashSize))
@@ -205,7 +204,7 @@ func uploadFeedUpdate(
 	c client.Client,
 	batchID client.BatchID,
 	privateKey *ecdsa.PrivateKey,
-	index int,
+	index uint64,
 	topic client.Topic,
 	dataRaw []byte,
 ) {
@@ -238,7 +237,7 @@ func uploadFeedUpdate(
 	assert.NoError(t, err)
 	assert.NoError(t, respReader.Close())
 
-	assert.Equal(t, payload, client.RawDataFromSOCResp(respData))
+	assert.Equal(t, payload, client.RawDataFromSocResp(respData))
 }
 
 func randomBytes(t *testing.T, size int) []byte {

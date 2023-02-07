@@ -28,7 +28,6 @@ var (
 	errStampUsageExceeded    = fmt.Errorf("stamp usage exceeded")
 	errBuyStampInvalidAmount = fmt.Errorf("amount must be positive non zero value")
 	errBuyStampInvalidDepth  = fmt.Errorf("depth is not in acceptable range")
-	errNoFeedUpdates         = fmt.Errorf("no feed updates")
 )
 
 func NewClient() client.Client {
@@ -227,7 +226,7 @@ func (c *mockClient) FeedIndexLatest(
 		count  int
 	)
 
-	for i := 0; ; i++ {
+	for i := uint64(0); ; i++ {
 		socID, err := client.FeedID(topic, i)
 		if err != nil {
 			return client.FeedIndexResponse{}, fmt.Errorf("failed to generate feed id: %w", err)
@@ -242,7 +241,7 @@ func (c *mockClient) FeedIndexLatest(
 	}
 
 	if count == 0 {
-		return client.FeedIndexResponse{}, errNoFeedUpdates
+		return client.FeedIndexResponse{}, nil
 	}
 
 	resp := client.FeedIndexResponse{
