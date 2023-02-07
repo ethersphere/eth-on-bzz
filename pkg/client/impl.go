@@ -214,6 +214,14 @@ func (c *client) FeedIndexLatest(
 	//nolint:bodyclose // body is closed after handling error
 	httpResp, err := c.doRequest(ctx, http.MethodGet, endpoint, h, nil)
 	if err != nil {
+		// When there are no feed updates we don't want to return this as
+		// an error.
+		if err, ok := err.(swarmAPIError); ok { //nolint:errorlint // relax
+			if err.Code == http.StatusNotFound {
+				return resp, nil
+			}
+		}
+
 		return resp, fmt.Errorf("feeds request failed: %w", err)
 	}
 
@@ -301,6 +309,8 @@ func responseErrorHandler(r *http.Response) error {
 	if err := json.NewDecoder(r.Body).Decode(&eResp); err != nil {
 		return fmt.Errorf("failed to decode swarm api error response: %w", err)
 	}
+
+	eResp.Code = r.StatusCode
 
 	return eResp
 }

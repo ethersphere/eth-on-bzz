@@ -6,7 +6,6 @@ package client
 
 import (
 	"crypto/ecdsa"
-	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"time"
@@ -17,17 +16,6 @@ import (
 	"github.com/ethersphere/bee/pkg/soc"
 	"github.com/ethersphere/bee/pkg/swarm"
 )
-
-func RandomAddress() (swarm.Address, error) {
-	buf := make([]byte, swarm.HashSize)
-
-	_, err := rand.Read(buf)
-	if err != nil {
-		return swarm.ZeroAddress, fmt.Errorf("failed to make address: %w", err)
-	}
-
-	return swarm.NewAddress(buf), nil
-}
 
 var errSocInvalid = fmt.Errorf("SOC is not valid")
 
@@ -60,16 +48,16 @@ func SignSocData(
 	return ch.Data(), signature, nil
 }
 
-func RawDataFromSOCResp(resp []byte) []byte {
+func RawDataFromSocResp(resp []byte) []byte {
 	start := swarm.SpanSize + swarm.HashSize + swarm.SocSignatureSize
 
 	return resp[start:]
 }
 
 //nolint:wrapcheck //relax
-func FeedID(topic Topic, index int) (SocID, error) {
+func FeedID(topic Topic, index uint64) (SocID, error) {
 	idx := make([]byte, 8)
-	binary.BigEndian.PutUint64(idx, uint64(index))
+	binary.BigEndian.PutUint64(idx, index)
 
 	fid := make([]byte, 0, 8+len(topic))
 	fid = append(fid, topic...)
@@ -79,7 +67,7 @@ func FeedID(topic Topic, index int) (SocID, error) {
 }
 
 //nolint:wrapcheck //relax
-func FeedUpdateReference(owner common.Address, topic Topic, index int) ([]byte, error) {
+func FeedUpdateReference(owner common.Address, topic Topic, index uint64) ([]byte, error) {
 	feedID, err := FeedID(topic, index)
 	if err != nil {
 		return nil, err
@@ -101,6 +89,10 @@ func PayloadWithTime(payload []byte, t time.Time) []byte {
 	res = append(res, payload...)
 
 	return res
+}
+
+func PayloadStripTime(payload []byte) []byte {
+	return payload[8:]
 }
 
 //nolint:wrapcheck //relax
