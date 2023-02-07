@@ -24,7 +24,10 @@ func TestBzzDB(t *testing.T) {
 	beeCli := mock.NewClient()
 
 	newBzzDB := func() bzzdb.KeyValueStore {
-		return bzzdb.New(privKey, beeCli)
+		db, err := bzzdb.New(privKey, beeCli)
+		assert.NoError(t, err)
+
+		return db
 	}
 
 	dbtest.TestDatabaseSuite(t, newBzzDB)

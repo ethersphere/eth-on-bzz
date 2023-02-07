@@ -8,36 +8,47 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
-	"encoding/hex"
 	"errors"
 	"io"
+	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethersphere/bee/pkg/crypto"
 	"github.com/ethersphere/bee/pkg/swarm"
 
 	"github.com/ethersphere/eth-on-bzz/pkg/client"
 	"github.com/ethersphere/eth-on-bzz/pkg/postage"
 )
 
-const (
-	deletedSOCData = "deleted"
-	keyPrefix      = "bzzdb-"
+const keyPrefix = "bzzdb-"
+
+var (
+	errBzzDBNotFound = errors.New("not found")
+
+	//nolint:gochecknoglobals
+	zeroSocData = make([]byte, swarm.HashSize)
 )
 
-var errBzzDBNotFound = errors.New("not found")
-
+//nolint:wrapcheck //relax
 func New(
 	privKey *ecdsa.PrivateKey,
 	beeCli client.Client,
-) KeyValueStore {
+) (KeyValueStore, error) {
+	owner, err := client.OwnerFromKey(privKey)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &bzzdb{
 		privKey:   privKey,
+		owner:     owner,
 		beeCli:    beeCli,
 		postage:   postage.New(beeCli),
 		ctx:       ctx,
 		ctxCancel: cancel,
-	}
+	}, nil
 }
 
 // bzzdb implements ethereum KeyValueStore interface.
@@ -45,6 +56,7 @@ type bzzdb struct {
 	privKey *ecdsa.PrivateKey
 	beeCli  client.Client
 	postage postage.Postage
+	owner   common.Address
 
 	//nolint:containedctx // this ctx is need because methods of KeyValueStore
 	// interface do not pass down context. Single context is created in New method
@@ -68,32 +80,55 @@ func (db *bzzdb) Has(key []byte) (bool, error) {
 
 //nolint:wrapcheck //relax
 func (db *bzzdb) Get(key []byte) ([]byte, error) {
-	owner, err := client.OwnerFromKey(db.privKey)
+	topic, err := makeTopic(key)
 	if err != nil {
 		return nil, err
 	}
 
-	swarmKey := makeKey(key)
-	topic := client.Topic(hex.EncodeToString(swarmKey))
-
-	feedResp, err := db.beeCli.FeedGet(db.ctx, owner, topic)
+	feedIndexResp, err := db.beeCli.FeedIndexLatest(db.ctx, db.owner, topic)
 	if err != nil {
 		return nil, err
 	}
 
-	addr := client.RawDataFromSOCResp(feedResp.Current)
-	if bytes.Equal(addr, []byte(deletedSOCData)) {
+	if feedIndexResp.Current == 0 && feedIndexResp.Next == 0 {
 		return nil, errBzzDBNotFound
 	}
 
-	body, err := db.beeCli.Download(db.ctx, swarm.NewAddress(addr))
+	ref, err := client.FeedUpdateReference(db.owner, topic, feedIndexResp.Current)
 	if err != nil {
 		return nil, err
 	}
 
-	defer body.Close()
+	respReader, err := db.beeCli.DownloadChunk(db.ctx, swarm.NewAddress(ref))
+	if err != nil {
+		return nil, err
+	}
 
-	return io.ReadAll(body)
+	respData, err := io.ReadAll(respReader)
+	if err != nil {
+		return nil, err
+	}
+	defer respReader.Close()
+
+	respData = client.RawDataFromSocResp(respData)
+	respData = client.PayloadStripTime(respData)
+
+	if bytes.Equal(respData, zeroSocData) {
+		return nil, errBzzDBNotFound
+	}
+
+	respReader, err = db.beeCli.Download(db.ctx, swarm.NewAddress(respData))
+	if err != nil {
+		return nil, err
+	}
+
+	respData, err = io.ReadAll(respReader)
+	if err != nil {
+		return nil, err
+	}
+	defer respReader.Close()
+
+	return respData, nil
 }
 
 //nolint:wrapcheck //relax
@@ -103,20 +138,41 @@ func (db *bzzdb) Put(key []byte, value []byte) error {
 		return err
 	}
 
-	uploadResp, err := db.beeCli.Upload(db.ctx, value, batchID)
+	var dataRef []byte
+	if value == nil {
+		dataRef = zeroSocData
+	} else {
+		uploadResp, err := db.beeCli.Upload(db.ctx, value, batchID)
+		if err != nil {
+			return err
+		}
+
+		dataRef = uploadResp.Reference.Bytes()
+	}
+
+	topic, err := makeTopic(key)
 	if err != nil {
 		return err
 	}
 
-	swarmKey := makeKey(key)
-	rawData := uploadResp.Reference.Bytes()
-
-	socData, sig, owner, err := client.SignSocData(swarmKey, rawData, db.privKey)
+	feedIndexResp, err := db.beeCli.FeedIndexLatest(db.ctx, db.owner, topic)
 	if err != nil {
 		return err
 	}
 
-	_, err = db.beeCli.UploadSOC(db.ctx, owner, client.SocID(swarmKey), socData, sig, batchID)
+	socID, err := client.FeedID(topic, feedIndexResp.Next)
+	if err != nil {
+		return err
+	}
+
+	payload := client.PayloadWithTime(dataRef, time.Unix(0, 0))
+
+	data, sig, err := client.SignSocData(socID, payload, db.privKey)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.beeCli.UploadSoc(db.ctx, db.owner, socID, data, sig, batchID)
 	if err != nil {
 		return err
 	}
@@ -124,27 +180,8 @@ func (db *bzzdb) Put(key []byte, value []byte) error {
 	return nil
 }
 
-//nolint:wrapcheck //relax
 func (db *bzzdb) Delete(key []byte) error {
-	batchID, err := db.postage.CurrentBatchID(db.ctx)
-	if err != nil {
-		return err
-	}
-
-	swarmKey := makeKey(key)
-	rawData := []byte(deletedSOCData)
-
-	socData, sig, owner, err := client.SignSocData(swarmKey, rawData, db.privKey)
-	if err != nil {
-		return err
-	}
-
-	_, err = db.beeCli.UploadSOC(db.ctx, owner, client.SocID(swarmKey), socData, sig, batchID)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return db.Put(key, nil)
 }
 
 func (db *bzzdb) Close() error {
@@ -153,6 +190,9 @@ func (db *bzzdb) Close() error {
 	return nil
 }
 
-func makeKey(key []byte) []byte {
-	return []byte(keyPrefix + string(key))
+//nolint:wrapcheck //relax
+func makeTopic(key []byte) (client.Topic, error) {
+	data := []byte(keyPrefix + string(key))
+
+	return crypto.LegacyKeccak256(data)
 }
