@@ -1,22 +1,34 @@
-// Copyright 2022 The Swarm Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 // Copyright 2023 The Swarm Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
 package bzzdb_test
 
-// import (
-// 	"testing"
+import (
+	"testing"
 
-// 	"github.com/ethersphere/eth-on-bzz/pkg/bzzdb"
-// 	"github.com/ethersphere/eth-on-bzz/pkg/bzzdb/dbtest"
-// )
+	"github.com/ethersphere/bee/pkg/crypto"
+	"github.com/stretchr/testify/assert"
 
-// func TestBzzDB(t *testing.T) {
-// 	t.Parallel()
+	"github.com/ethersphere/eth-on-bzz/pkg/bzzdb"
+	"github.com/ethersphere/eth-on-bzz/pkg/bzzdb/dbtest"
+	"github.com/ethersphere/eth-on-bzz/pkg/client/mock"
+)
 
-// 	dbtest.TestDatabaseSuite(t, bzzdb.New)
-// }
+func TestBzzDB(t *testing.T) {
+	t.Parallel()
+
+	privKey, err := crypto.GenerateSecp256k1Key()
+	assert.NoError(t, err)
+
+	beeCli := mock.NewClient()
+
+	newBzzDB := func() bzzdb.KeyValueStore {
+		db, err := bzzdb.New(privKey, beeCli)
+		assert.NoError(t, err)
+
+		return db
+	}
+
+	dbtest.TestDatabaseSuite(t, newBzzDB)
+}
