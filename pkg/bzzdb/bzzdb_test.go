@@ -13,18 +13,19 @@ import (
 	"github.com/ethersphere/eth-on-bzz/pkg/bzzdb"
 	"github.com/ethersphere/eth-on-bzz/pkg/bzzdb/dbtest"
 	"github.com/ethersphere/eth-on-bzz/pkg/client/mock"
+	"github.com/ethersphere/eth-on-bzz/pkg/postage"
 )
 
 func TestBzzDB(t *testing.T) {
 	t.Parallel()
 
-	privKey, err := crypto.GenerateSecp256k1Key()
+	privateKey, err := crypto.GenerateSecp256k1Key()
 	assert.NoError(t, err)
 
 	beeCli := mock.NewClient()
 
 	newBzzDB := func() bzzdb.KeyValueStore {
-		db, err := bzzdb.New(privKey, beeCli)
+		db, err := bzzdb.New(privateKey, beeCli, postage.New(beeCli))
 		assert.NoError(t, err)
 
 		return db
