@@ -99,34 +99,21 @@ func (db *bzzdb) Get(key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	respReader, err := db.beeCli.DownloadChunk(db.ctx, swarm.NewAddress(ref))
+	respData, err := db.downloadAndRead(db.beeCli.DownloadChunk, swarm.NewAddress(ref))
 	if err != nil {
 		return nil, err
 	}
 
-	respData, err := io.ReadAll(respReader)
-	if err != nil {
-		return nil, err
-	}
-	defer respReader.Close()
-
-	respData = client.RawDataFromSocResp(respData)
-	respData = client.PayloadStripTime(respData)
+	respData = client.PayloadStripTime(client.RawDataFromSocResp(respData))
 
 	if bytes.Equal(respData, zeroSocData) {
 		return nil, errBzzDBNotFound
 	}
 
-	respReader, err = db.beeCli.Download(db.ctx, swarm.NewAddress(respData))
+	respData, err = db.downloadAndRead(db.beeCli.Download, swarm.NewAddress(respData))
 	if err != nil {
 		return nil, err
 	}
-
-	respData, err = io.ReadAll(respReader)
-	if err != nil {
-		return nil, err
-	}
-	defer respReader.Close()
 
 	return respData, nil
 }
@@ -188,6 +175,24 @@ func (db *bzzdb) Close() error {
 	db.ctxCancel()
 
 	return nil
+}
+
+type downloadFn = func(context.Context, swarm.Address) (io.ReadCloser, error)
+
+//nolint:wrapcheck //relax
+func (db *bzzdb) downloadAndRead(downloadFn downloadFn, addr swarm.Address) ([]byte, error) {
+	respReader, err := downloadFn(db.ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	respData, err := io.ReadAll(respReader)
+	if err != nil {
+		return nil, err
+	}
+	defer respReader.Close()
+
+	return respData, nil
 }
 
 //nolint:wrapcheck //relax
