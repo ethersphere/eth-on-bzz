@@ -20,21 +20,21 @@ import (
 	"github.com/ethersphere/eth-on-bzz/pkg/postage"
 )
 
-const keyPrefix = "bzzdb-"
-
+//nolint:gochecknoglobals
 var (
 	errBzzDBNotFound = errors.New("not found")
 
-	//nolint:gochecknoglobals
 	zeroSocData = make([]byte, swarm.HashSize)
+	keyPrefix   = []byte("bzzdb-")
 )
 
 //nolint:wrapcheck //relax
 func New(
-	privKey *ecdsa.PrivateKey,
+	privateKey *ecdsa.PrivateKey,
 	beeCli client.Client,
+	postage postage.Postage,
 ) (KeyValueStore, error) {
-	owner, err := client.OwnerFromKey(privKey)
+	owner, err := client.OwnerFromKey(privateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -42,21 +42,21 @@ func New(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &bzzdb{
-		privKey:   privKey,
-		owner:     owner,
-		beeCli:    beeCli,
-		postage:   postage.New(beeCli),
-		ctx:       ctx,
-		ctxCancel: cancel,
+		privateKey: privateKey,
+		owner:      owner,
+		beeCli:     beeCli,
+		postage:    postage,
+		ctx:        ctx,
+		ctxCancel:  cancel,
 	}, nil
 }
 
 // bzzdb implements ethereum KeyValueStore interface.
 type bzzdb struct {
-	privKey *ecdsa.PrivateKey
-	beeCli  client.Client
-	postage postage.Postage
-	owner   common.Address
+	privateKey *ecdsa.PrivateKey
+	beeCli     client.Client
+	postage    postage.Postage
+	owner      common.Address
 
 	//nolint:containedctx // this ctx is need because methods of KeyValueStore
 	// interface do not pass down context. Single context is created in New method
@@ -120,21 +120,11 @@ func (db *bzzdb) Get(key []byte) ([]byte, error) {
 
 //nolint:wrapcheck //relax
 func (db *bzzdb) Put(key []byte, value []byte) error {
+	uploadRespC := db.uploadAsync(value)
+
 	batchID, err := db.postage.CurrentBatchID(db.ctx)
 	if err != nil {
 		return err
-	}
-
-	var dataRef []byte
-	if value == nil {
-		dataRef = zeroSocData
-	} else {
-		uploadResp, err := db.beeCli.Upload(db.ctx, value, batchID)
-		if err != nil {
-			return err
-		}
-
-		dataRef = uploadResp.Reference.Bytes()
 	}
 
 	topic, err := makeTopic(key)
@@ -152,9 +142,14 @@ func (db *bzzdb) Put(key []byte, value []byte) error {
 		return err
 	}
 
-	payload := client.PayloadWithTime(dataRef, time.Unix(0, 0))
+	uploadResp := <-uploadRespC
+	if err := uploadResp.err; err != nil {
+		return err
+	}
 
-	data, sig, err := client.SignSocData(socID, payload, db.privKey)
+	payload := client.PayloadWithTime(uploadResp.ref.Bytes(), time.Unix(0, 0))
+
+	data, sig, err := client.SignSocData(socID, payload, db.privateKey)
 	if err != nil {
 		return err
 	}
@@ -177,6 +172,41 @@ func (db *bzzdb) Close() error {
 	return nil
 }
 
+type uploadResp struct {
+	ref swarm.Address
+	err error
+}
+
+func (db *bzzdb) uploadAsync(value []byte) <-chan uploadResp {
+	respC := make(chan uploadResp, 1)
+
+	go func() {
+		if value == nil {
+			respC <- uploadResp{ref: swarm.NewAddress(zeroSocData)}
+
+			return
+		}
+
+		batchID, err := db.postage.CurrentBatchID(db.ctx)
+		if err != nil {
+			respC <- uploadResp{err: err}
+
+			return
+		}
+
+		resp, err := db.beeCli.Upload(db.ctx, value, batchID)
+		if err != nil {
+			respC <- uploadResp{err: err}
+
+			return
+		}
+
+		respC <- uploadResp{ref: resp.Reference}
+	}()
+
+	return respC
+}
+
 type downloadFn = func(context.Context, swarm.Address) (io.ReadCloser, error)
 
 //nolint:wrapcheck //relax
@@ -197,7 +227,9 @@ func (db *bzzdb) downloadAndRead(downloadFn downloadFn, addr swarm.Address) ([]b
 
 //nolint:wrapcheck //relax
 func makeTopic(key []byte) (client.Topic, error) {
-	data := []byte(keyPrefix + string(key))
+	data := make([]byte, 0, len(key)+len(keyPrefix))
+	data = append(data, keyPrefix...)
+	data = append(data, key...)
 
 	return crypto.LegacyKeccak256(data)
 }

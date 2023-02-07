@@ -18,6 +18,7 @@ import (
 	"github.com/ethersphere/eth-on-bzz/pkg/bzzdb"
 	"github.com/ethersphere/eth-on-bzz/pkg/bzzdb/dbtest"
 	"github.com/ethersphere/eth-on-bzz/pkg/client"
+	"github.com/ethersphere/eth-on-bzz/pkg/postage"
 )
 
 const (
@@ -28,15 +29,14 @@ const (
 func Test_BzzDB_Integration(t *testing.T) {
 	t.Parallel()
 
-	privKey, err := crypto.GenerateSecp256k1Key()
-	assert.NoError(t, err)
+	privateKey := getPrivateKey(t)
 
 	beeCli := client.NewClient(client.Config{
 		NodeURL: getEnv(t, envNodeAddress),
 	})
 
 	newBzzDB := func() bzzdb.KeyValueStore {
-		db, err := bzzdb.New(privKey, beeCli)
+		db, err := bzzdb.New(privateKey, beeCli, postage.New(beeCli))
 		assert.NoError(t, err)
 
 		return db
