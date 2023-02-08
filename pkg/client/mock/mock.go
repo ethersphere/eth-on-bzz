@@ -75,21 +75,23 @@ func (s *stampData) incUsage(size int) error {
 func (c *mockClient) Stamps(
 	ctx context.Context,
 ) (client.StampsResponse, error) {
-	var resp client.StampsResponse
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
+	stamps := make([]client.Stamp, 0, len(c.stamps))
 	for batchID, st := range c.stamps {
 		s := client.Stamp{
-			Amount:        bigint.Wrap(st.amount),
+			Amount:        bigint.Wrap(big.NewInt(0).Set(st.amount)),
 			Depth:         st.depth,
 			ImmutableFlag: st.immutable,
 			BatchID:       batchID,
 			Usable:        true,
 		}
 
-		resp.Stamps = append(resp.Stamps, s)
+		stamps = append(stamps, s)
 	}
 
-	return resp, nil
+	return client.StampsResponse{Stamps: stamps}, nil
 }
 
 func (c *mockClient) BuyStamp(
@@ -110,17 +112,13 @@ func (c *mockClient) BuyStamp(
 
 	c.lock.Lock()
 	c.stamps[batchID] = &stampData{
-		amount:    amount,
+		amount:    big.NewInt(0).Set(amount),
 		depth:     depth,
 		immutable: immutable,
 	}
 	c.lock.Unlock()
 
-	resp := client.BuyStampResponse{
-		BatchID: batchID,
-	}
-
-	return resp, nil
+	return client.BuyStampResponse{BatchID: batchID}, nil
 }
 
 func (c *mockClient) Upload(
@@ -129,13 +127,10 @@ func (c *mockClient) Upload(
 	batchID client.BatchID,
 ) (client.UploadResponse, error) {
 	c.lock.Lock()
-	defer c.lock.Unlock()
-
 	addr, err := c.upload(newCacAddress(data), data, batchID)
+	c.lock.Unlock()
 
-	resp := client.UploadResponse{Reference: addr}
-
-	return resp, err
+	return client.UploadResponse{Reference: addr}, err
 }
 
 func (c *mockClient) upload(
@@ -207,9 +202,7 @@ func (c *mockClient) UploadSoc(
 
 	c.feeds[feedID(owner, hex.EncodeToString(socID))] = addr
 
-	resp := client.UploadSocResponse{Reference: addr}
-
-	return resp, nil
+	return client.UploadSocResponse{Reference: addr}, nil
 }
 
 func (c *mockClient) FeedIndexLatest(
