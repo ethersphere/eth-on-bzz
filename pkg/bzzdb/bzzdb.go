@@ -46,6 +46,7 @@ func New(
 		owner:      owner,
 		beeCli:     beeCli,
 		postage:    postage,
+		indexer:    NewFeedIndexer(beeCli, owner),
 		ctx:        ctx,
 		ctxCancel:  cancel,
 	}, nil
@@ -57,6 +58,7 @@ type bzzdb struct {
 	beeCli     client.Client
 	postage    postage.Postage
 	owner      common.Address
+	indexer    *FeedIndexer
 
 	//nolint:containedctx // this ctx is need because methods of KeyValueStore
 	// interface do not pass down context. Single context is created in New method
@@ -85,16 +87,16 @@ func (db *bzzdb) Get(key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	feedIndexResp, err := db.beeCli.FeedIndexLatest(db.ctx, db.owner, topic)
+	index, exists, err := db.indexer.Current(db.ctx, topic)
 	if err != nil {
 		return nil, err
 	}
 
-	if feedIndexResp.Current == 0 && feedIndexResp.Next == 0 {
+	if !exists {
 		return nil, errBzzDBNotFound
 	}
 
-	ref, err := client.FeedUpdateReference(db.owner, topic, feedIndexResp.Current)
+	ref, err := client.FeedUpdateReference(db.owner, topic, index)
 	if err != nil {
 		return nil, err
 	}
@@ -132,12 +134,14 @@ func (db *bzzdb) Put(key []byte, value []byte) error {
 		return err
 	}
 
-	feedIndexResp, err := db.beeCli.FeedIndexLatest(db.ctx, db.owner, topic)
+	index, err := db.indexer.AcquireNext(db.ctx, topic)
 	if err != nil {
 		return err
 	}
 
-	socID, err := client.FeedID(topic, feedIndexResp.Next)
+	defer db.indexer.Release(topic, index)
+
+	socID, err := client.FeedID(topic, index)
 	if err != nil {
 		return err
 	}
@@ -180,13 +184,13 @@ type uploadResp struct {
 func (db *bzzdb) uploadAsync(value []byte) <-chan uploadResp {
 	respC := make(chan uploadResp, 1)
 
+	if value == nil {
+		respC <- uploadResp{ref: swarm.NewAddress(zeroSocData)}
+
+		return respC
+	}
+
 	go func() {
-		if value == nil {
-			respC <- uploadResp{ref: swarm.NewAddress(zeroSocData)}
-
-			return
-		}
-
 		batchID, err := db.postage.CurrentBatchID(db.ctx)
 		if err != nil {
 			respC <- uploadResp{err: err}
