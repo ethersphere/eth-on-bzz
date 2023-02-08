@@ -121,7 +121,7 @@ func (c *mockClient) BuyStamp(
 	return client.BuyStampResponse{BatchID: batchID}, nil
 }
 
-func (c *mockClient) Upload(
+func (c *mockClient) UploadBytes(
 	ctx context.Context,
 	data []byte,
 	batchID client.BatchID,
@@ -158,7 +158,7 @@ func (c *mockClient) upload(
 	return addr, nil
 }
 
-func (c *mockClient) Download(
+func (c *mockClient) DownloadBytes(
 	ctx context.Context,
 	addr swarm.Address,
 ) (io.ReadCloser, error) {
@@ -181,7 +181,7 @@ func (c *mockClient) DownloadChunk(
 	ctx context.Context,
 	addr swarm.Address,
 ) (io.ReadCloser, error) {
-	return c.Download(ctx, addr)
+	return c.DownloadBytes(ctx, addr)
 }
 
 func (c *mockClient) UploadSoc(

@@ -79,15 +79,15 @@ type (
 			immutable bool,
 		) (BuyStampResponse, error)
 
-		// Upload arbitrary bytes data via /bytes endpoint.
-		Upload(
+		// UploadBytes arbitrary bytes data via /bytes endpoint.
+		UploadBytes(
 			ctx context.Context,
 			data []byte,
 			batchID BatchID,
 		) (UploadResponse, error)
 
-		// Download bytes data via /bytes endpoint.
-		Download(
+		// DownloadBytes bytes data via /bytes endpoint.
+		DownloadBytes(
 			ctx context.Context,
 			addr swarm.Address,
 		) (io.ReadCloser, error)

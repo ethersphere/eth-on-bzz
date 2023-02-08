@@ -85,11 +85,11 @@ func (suite *TestSuite) TestUploadDownloadOk() {
 	for _, tc := range tests {
 		data := randomBytes(t, tc.size)
 
-		resp, err := c.Upload(ctx, data, batchID)
+		resp, err := c.UploadBytes(ctx, data, batchID)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, resp)
 
-		reader, err := c.Download(ctx, resp.Reference)
+		reader, err := c.DownloadBytes(ctx, resp.Reference)
 		assert.NoError(t, err)
 		assert.NotNil(t, reader)
 
@@ -109,7 +109,7 @@ func (suite *TestSuite) TestUploadError() {
 
 	data := randomBytes(t, 4)
 
-	resp, err := c.Upload(ctx, data, client.BatchID("invalid"))
+	resp, err := c.UploadBytes(ctx, data, client.BatchID("invalid"))
 	assert.Error(t, err)
 	assert.Empty(t, resp)
 }
@@ -122,7 +122,7 @@ func (suite *TestSuite) TestDownloadError() {
 	ctx := context.Background()
 
 	addr := swarm.NewAddress(randomBytes(t, swarm.HashSize))
-	reader, err := c.Download(ctx, addr)
+	reader, err := c.DownloadBytes(ctx, addr)
 	assert.Error(t, err)
 	assert.Nil(t, reader)
 }

@@ -105,7 +105,7 @@ func (c *client) BuyStamp(
 	return resp, nil
 }
 
-func (c *client) Upload(
+func (c *client) UploadBytes(
 	ctx context.Context,
 	data []byte,
 	batchID BatchID,
@@ -133,7 +133,7 @@ func (c *client) Upload(
 	return resp, nil
 }
 
-func (c *client) Download(
+func (c *client) DownloadBytes(
 	ctx context.Context,
 	addr swarm.Address,
 ) (io.ReadCloser, error) {
