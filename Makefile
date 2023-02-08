@@ -15,7 +15,7 @@ lint: get-golangcilint
 # Runs tests on entire repo
 .PHONY: test
 test: 
-	go test  ./... -race -failfast -timeout=3s -count=1 
+	go test  ./... -race -failfast -timeout=5s -count=50 
 
 # Runs tests with integration components on entire repo
 .PHONY: test-integration

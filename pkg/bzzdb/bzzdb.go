@@ -112,7 +112,7 @@ func (db *bzzdb) Get(key []byte) ([]byte, error) {
 		return nil, errBzzDBNotFound
 	}
 
-	respData, err = db.downloadAndRead(db.beeCli.Download, swarm.NewAddress(respData))
+	respData, err = db.downloadAndRead(db.beeCli.DownloadBytes, swarm.NewAddress(respData))
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func (db *bzzdb) uploadAsync(value []byte) <-chan uploadResp {
 			return
 		}
 
-		resp, err := db.beeCli.Upload(db.ctx, value, batchID)
+		resp, err := db.beeCli.UploadBytes(db.ctx, value, batchID)
 		if err != nil {
 			respC <- uploadResp{err: err}
 
